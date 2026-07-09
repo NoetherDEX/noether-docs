@@ -1,3 +1,203 @@
-# Placeholder
+import { Callout, Steps } from 'nextra/components'
 
-_Content in progress._
+# Trading guide
+
+This is the complete manual for trading perpetual futures on Noether: markets and limits, every order type, isolated vs cross margin, fees, funding, and liquidation. It assumes you already have a connected wallet with test USDC — if not, start with the [getting started guide](/guides/getting-started).
+
+<Callout type="info">
+Noether currently runs on the Stellar **testnet**. All USDC here is test money from the faucet — trade freely, nothing of real value is at risk.
+</Callout>
+
+## Markets
+
+The pair selector at the top of the [trade page](https://noether.exchange/trade) lists **13 perpetual markets**:
+
+BTC-PERP, ETH-PERP, XLM-PERP, SOL-PERP, XRP-PERP, ADA-PERP, BNB-PERP, TRX-PERP, DOGE-PERP, ZEC-PERP, LINK-PERP, BCH-PERP, LTC-PERP
+
+Every market trades under the same global limits:
+
+| Limit | Value |
+|---|---|
+| Max leverage | 10x (25x is planned for mainnet) |
+| Min collateral per position or order | 10 USDC |
+| Max position size | 100,000 USDC notional |
+| Gas | Keep at least 1 XLM in your wallet — the UI warns below that |
+
+Position size is your collateral multiplied by your leverage. So with the 10 USDC minimum at 10x you control a $100 position, and $10,000 of collateral at 10x hits the $100,000 position cap.
+
+Two prices appear on the trade page, and the UI discloses which is which under the chart:
+
+- **Execution price** — the live **Noeracle mark**, quoted in the order panel. This is the price the contract actually opens, closes, and liquidates against.
+- **Chart reference** — candles are seeded from a Binance reference feed (or native Noeracle candles where available).
+
+If the live price stream stalls, an amber **"Live prices stale"** badge appears next to the pair selector while the app falls back to slower on-chain reads. See [the oracle page](/protocol/oracle) for how prices reach the contract.
+
+## Order types
+
+The order panel has four tabs — **Market, Limit, Stop Limit, Trail Stop** — plus optional take-profit/stop-loss fields and a reduce-only flag. Every order placement is one wallet signature.
+
+### Market
+
+Opens a position immediately at the current Noeracle mark. Choose Long or Short, enter collateral, set leverage (1–10x), sign. Use it when you want the position now and the exact entry price matters less than getting filled. Market orders pay the **taker** fee.
+
+### Limit
+
+Rests on-chain until the market reaches your trigger price, then a keeper bot executes it. For a long, the order triggers when the price **drops to** your trigger; for a short, when it **rises to** it — you are always trying to enter at a better price than now. Your collateral is escrowed when you place the order and refunded in full if you cancel. Limit orders pay the cheaper **maker** fee. Use limits when you have a target entry and are willing to wait.
+
+Each limit order carries a **slippage tolerance** (presets 0.5% / 1.0% / 2.0%, default 0.5%). If the execution price at trigger time differs from your reference price by more than the tolerance, the order is **cancelled and your collateral refunded** — you are never filled at a worse price than you allowed.
+
+### Stop-limit
+
+A two-phase entry order: when the price reaches your **stop price**, a limit order at your **limit price** activates and then fills like a normal limit order. For a long: "when price drops to stop, a buy limit at your limit price activates." Use it to enter on a breakout or breakdown without chasing the move with a market order. Collateral is escrowed at placement, and keeper-executed fills pay the maker fee.
+
+### Take-profit and stop-loss
+
+These attach to an **existing position** rather than opening a new one:
+
+- **Stop-loss** closes the position when the price moves against you to the trigger (below entry for longs, above for shorts). The modal offers quick-set buttons (−2% / −5% / −10% from entry for longs) and previews the estimated loss at trigger.
+- **Take-profit** closes the position when the price moves in your favor to the trigger (above entry for longs, below for shorts). You can optionally add a **limit price** to make it a *take-limit* — execution then references your limit price instead of the trigger. Leave the limit empty for market execution at trigger.
+
+A position can hold at most one stop-loss and one take-profit at a time. Neither locks extra collateral. When the position closes for any reason — manual close, the other trigger firing, or liquidation — any remaining attached orders are cancelled automatically.
+
+<Callout type="info">
+You can also set TP/SL **while opening** a market order (isolated margin only). These are attached as **separate wallet signatures right after the position opens** — expect one signature for the open, then one more per attached order. A declined attach signature leaves the position open; it never unwinds the trade.
+</Callout>
+
+### Trailing stop
+
+A stop-loss that follows the price. Pick an open isolated position and a trailing percent (presets 1 / 2 / 3 / 5%, default 3%, custom up to 50%). For a long, the system tracks the peak price since placement; if the price falls that percent from the peak, the position closes. Keeper bots ratchet the peak as the market moves. Use it to lock in gains on a trending position without picking an exit price in advance. One trailing stop per position.
+
+### Reduce-only
+
+A checkbox on limit and stop-limit orders. A reduce-only order **can only shrink your exposure — it can never open or grow a position**. At execution it finds your largest opposing isolated position in the same asset that fits inside the order's size, refunds the order's escrowed collateral, and closes that position. If no suitable opposing position exists (say it was already closed), the order cancels itself instead of opening an unwanted new position. Use it for exits you place in advance, when you want a guarantee that a stale order can't flip you into a fresh trade.
+
+## Time-in-force
+
+Limit and stop-limit orders take a time-in-force setting:
+
+| Mode | Behavior | Use when |
+|---|---|---|
+| **GTC** (Good Till Cancel) | Rests until filled or you cancel it | Default — patient entries |
+| **IOC** (Immediate Or Cancel) | Fills now if the trigger condition is already met, otherwise cancels instantly and refunds collateral | You want the price now or not at all |
+| **Post Only** | Rejected at placement if it would fill immediately — guarantees you are the maker | You specifically want the maker fee rate |
+
+For stop-limit orders, IOC and Post Only apply to the limit phase (after the stop triggers), not to the stop itself.
+
+## Margin modes
+
+The toggle at the top of the order panel selects **Isolated** or **Cross** margin.
+
+| | Isolated | Cross |
+|---|---|---|
+| Collateral | Locked per position | Shared pool across all your cross positions |
+| Max loss | That position's collateral only | Your whole cross pool plus all cross collateral |
+| Liquidation | Per position, at a fixed liquidation price set at open | Account-level, when total equity falls to maintenance margin |
+| Liquidation price shown | Yes, exact | "Account Level" — an estimate only, since it depends on all positions |
+| Close proceeds go to | Your wallet | Your cross pool (withdraw separately) |
+| SL / TP / trailing stops | Supported | **Not currently available** (see below) |
+
+**Isolated** is the simpler mode: each position stands alone, and a losing trade can never cost more than the collateral you put into it.
+
+**Cross** shares one collateral pool: unrealized profit on one position offsets losses on another, so your account survives swings that would liquidate an isolated position. The trade-off is that one bad position can drain the shared pool. Selecting Cross reveals **Deposit / Withdraw** controls for the pool (minimum 1 USDC each); opening a cross position auto-deposits any shortfall from your wallet in the same transaction. Withdrawals are blocked if they would leave your equity at or below maintenance margin.
+
+<Callout type="warning">
+**Current limitation:** stop-loss, take-profit, and trailing stops **cannot be attached to cross-margin positions**. The buttons are disabled with the note "Unavailable for cross-margin positions (contract fix pending)". If you rely on automated exits, use isolated margin for now.
+</Callout>
+
+### Cross-margin health banner
+
+When you hold cross positions (or a cross pool balance), a health banner appears above the positions list showing **Equity**, **Used Margin**, **Free Margin**, and **Margin Ratio**. The margin ratio compares your equity to the maintenance margin requirement (1% of your total cross position size):
+
+| Margin ratio | Status |
+|---|---|
+| Above 300% | Healthy (green) |
+| 100% – 300% | Caution (amber) |
+| At or below 100% | At Risk (red) — 100% is the liquidation trigger |
+
+If any position's mark price is temporarily unknown, the banner shows a neutral "Mark price unavailable" state with "—" values rather than guessing.
+
+## Fees
+
+Noether charges a trading fee **only when a position opens** — deducted from your collateral at open (or from an order's escrowed collateral at fill).
+
+| Tier | 14-day rolling volume | Maker | Taker |
+|---|---|---|---|
+| Base | $0 | 0.020% | 0.050% |
+| Tier 1 | over $20,000 | 0.015% | 0.040% |
+| Tier 2 | over $50,000 | 0.010% | 0.030% |
+| Tier 3 | over $100,000 | 0.005% | 0.020% |
+
+(These thresholds are testnet values, lowered for testing; mainnet plans use $1M / $5M / $25M.)
+
+- **Taker** fees apply to market opens. **Maker** fees apply to keeper-executed limit and stop-limit fills.
+- **Closing a position charges no trading fee.** Close size still counts toward your 14-day volume for tier purposes.
+- Orders executed by keeper bots (limit fills, stop-limit fills, SL/TP/trailing executions) additionally pay a small **keeper fee of 0.50 USDC plus 0.05% of position size**, deducted from the order or position collateral.
+
+<Callout type="info">
+The fee shown in the order summary is currently always an **estimate at the base tier** — the UI cannot read your on-chain 14-day volume yet, so a higher tier you may have earned is applied on-chain but not previewed. Volume you trade during a session accumulates in the preview client-side and resets on page refresh.
+</Callout>
+
+## Funding
+
+Funding keeps the perpetual price tethered to the underlying by paying the crowded side of the market to the other side.
+
+- **Base rate: 0.01% per hour** at full long/short imbalance, scaling with the imbalance (a market that is 50% net long accrues 0.005% per hour).
+- **Positive funding: longs pay shorts. Negative: shorts pay longs.**
+- Funding accrues hourly but is **settled lazily**: nothing moves while your position is open. The accumulated amount is applied to your PnL **when the position closes or is liquidated**. The Market Info card shows the current hourly rate with the note "settles on close".
+- Accrued funding also counts in margin and liquidation checks while the position is open, so a mounting funding bill gradually pushes a position toward liquidation.
+
+## Liquidation
+
+- **Maintenance margin is 1%** of position size. An isolated position gets a fixed **liquidation price** at open; when the mark reaches it (or equity including funding falls below maintenance margin), keeper bots liquidate the position. At 10x leverage that corresponds to roughly a **9% adverse move** from entry.
+- A cross account is liquidated as a whole when **total equity falls to the maintenance margin** of all cross positions combined (the health banner's 100% line). All cross positions close together.
+- On liquidation, a **5% liquidation fee** is taken from whatever equity remains as the keeper's reward (capped at 10% of the position's collateral); the remainder goes to the Liquidity Vault. **The trader receives nothing back** from a liquidated isolated position — close early if you want to salvage remaining collateral.
+- The positions table shows an orange warning triangle when the mark is **within 10% of your liquidation price** (isolated positions).
+
+<Callout type="error">
+At 10x leverage, liquidation costs your entire position collateral. Set a stop-loss above your liquidation price if you want to exit with anything left.
+</Callout>
+
+### Price-deviation guard
+
+If the oracle price suddenly moves more than **1%** from the last recently-used price, the market temporarily **rejects new opens** while a trusted price re-establishes — but **closes and liquidations always go through**. You can always reduce risk; the guard only halts adding it. If your open is rejected with a price-deviation error, wait a moment and retry.
+
+## Worked example: PnL and liquidation
+
+All numbers below follow directly from the parameters above (round numbers chosen for clarity).
+
+<Steps>
+### Open
+
+You open a **long BTC-PERP** with **100 USDC collateral at 10x leverage**, mark price **$60,000**.
+
+- Position size = 100 × 10 = **$1,000**
+- Taker fee = $1,000 × 0.050% = **$0.50**, deducted from collateral → **99.50 USDC** backs the position
+- Liquidation price (long, 10x, 1% maintenance margin) = entry × 0.91 = **$54,600** — a 9% drop
+
+### Hold
+
+BTC rises 2% to **$61,200**. Unrealized PnL = size × price change = $1,000 × 2% = **+$20.00** — a **+20% return** on your 100 USDC, because leverage multiplies the price move.
+
+Meanwhile the market stays fully long-heavy for 5 hours at the 0.01%-per-hour funding rate, so your position accrues $1,000 × 0.01% × 5 = **$0.50 of funding owed** (you are long and funding is positive, so you pay).
+
+### Close (the good outcome)
+
+You close at $61,200. Closing charges **no trading fee**; the accrued funding settles now.
+
+You receive: 99.50 (collateral) + 20.00 (PnL) − 0.50 (funding) = **119.00 USDC**. Net of the open fee, your 100 USDC became $119.00 on a 2% price move.
+
+### Liquidation (the bad outcome)
+
+Suppose instead BTC falls 9% to **$54,600**, the liquidation price. PnL = $1,000 × (−9%) = **−$90.00**.
+
+A keeper liquidates the position. Remaining equity ≈ 99.50 − 90.00 = $9.50 (ignoring funding). The keeper takes the 5% liquidation fee (≈ $0.48) and the rest goes to the Liquidity Vault. **You receive nothing** — the entire 100 USDC is gone, even though ~$9.50 of equity technically remained. That is why the UI warns you well before the mark reaches the liquidation price.
+</Steps>
+
+## What you'll see after trading
+
+- The **Positions** tab lists each open position with size, net value (collateral + unrealized PnL), entry vs mark, liquidation price, and PnL. Closes are always full-size — there is no partial close; to resize a position, close it and reopen.
+- The **Orders** tab shows pending and recent orders. Cancelling a limit or stop-limit order refunds its escrowed collateral.
+- The **Trade History** tab records closed trades. The Fees and Net PnL columns currently show placeholders — the fee breakdown ships with a future contract update.
+- Background toasts tell you when a resting order fills, cancels on slippage, or is otherwise removed.
+
+Deeper mechanics — exact formulas, precision, and contract-level behavior — live in [trading mechanics](/protocol/trading-mechanics).

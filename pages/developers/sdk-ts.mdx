@@ -1,3 +1,262 @@
-# Placeholder
+import { Callout } from 'nextra/components'
 
-_Content in progress._
+# TypeScript SDK
+
+`noether-sdk` is the official TypeScript client for the Noether gateway. It wraps every REST endpoint and the WebSocket stream behind typed sub-clients, and handles API-key issuance, transaction preparation, and submission. This page documents the published version **0.1.1** ([npm](https://www.npmjs.com/package/noether-sdk)).
+
+<Callout type="info">
+  The live deployment runs on the Stellar **testnet** with test funds. All snippets below point at the production gateway `https://noetherapi-production.up.railway.app`.
+</Callout>
+
+## Install
+
+```bash
+npm install noether-sdk @stellar/stellar-sdk
+```
+
+- Package name is `noether-sdk` (not scoped). Published version: **0.1.1**, MIT-licensed, dual ESM + CJS with bundled type declarations.
+- Requires **Node 18 or newer** (the SDK uses the native `fetch`).
+- `@stellar/stellar-sdk` (v14) is required for signing — issuing an API key and signing trade transactions both need a `Keypair`.
+- WebSocket support uses the global `WebSocket` (native in Node 22+ and browsers). On older Node, install the `ws` package and pass its constructor: `client.ws({ WebSocket })`.
+
+## Create a client
+
+`baseUrl` is **required** — the SDK has no default gateway URL.
+
+```ts
+import { NoetherClient } from 'noether-sdk';
+
+export interface NoetherClientOptions {
+  /** Base URL of the Noether API gateway. */
+  baseUrl: string;                    // REQUIRED — no default
+  /** API key + secret. Required for authed endpoints (account, orders, tx, key mgmt). */
+  credentials?: Credentials;          // { keyId: string; secret: string }
+  /** Override the global fetch implementation (for testing or custom transports). */
+  fetch?: typeof fetch;
+}
+
+const client = new NoetherClient({
+  baseUrl: 'https://noetherapi-production.up.railway.app',
+  credentials: { keyId: 'nk_...', secret: '...' },   // omit for public endpoints
+});
+```
+
+- `credentials` is the key pair from [API key issuance](/developers/authentication): `keyId` (looks like `nk_...`) and the 64-hex-character `secret`. On the wire they become the header `Authorization: Bearer` followed by the two values joined by a colon.
+- Authenticated requests also send an `X-Timestamp` header (unix seconds) by default for replay protection.
+- `client.withCredentials(credentials)` returns a **new** client bound to the given key; the original is untouched.
+- `client.ws()` returns a `WsClient` with the URL derived from `baseUrl` (`http` becomes `ws`, plus `/v1/ws`) and the client's credentials forwarded.
+- Calling an authed method on a client without credentials throws a plain `Error` before any HTTP request is made.
+
+## Sub-client surface (0.1.1)
+
+| Sub-client | Method | Auth | Returns |
+|---|---|---|---|
+| `health` | `ping()` | no | `{ status, uptime, version }` |
+| `markets` | `list()` | no | `MarketSummary[]` |
+| `markets` | `get(asset)` | no | `MarketSummary` |
+| `oracle` | `getPrice(asset)` | no | `OracleSnapshot` |
+| `oracle` | `getPrices()` | no | `OracleSnapshot[]` |
+| `events` | `list(query?)` | no | `RawEvent[]` (query: `topic`, `contract`, `fromLedger`, `toLedger`, `limit`) |
+| `keys` | `requestChallenge(address)` | no | `{ challengeHex, expiresAt }` |
+| `keys` | `exchange(input)` | no | `IssuedApiKey` |
+| `keys` | `create(input)` | no | `IssuedApiKey` (challenge + sign + exchange in one call) |
+| `keys` | `list()` | yes | `ApiKeyRecord[]` (all keys for your wallet) |
+| `keys` | `revoke(keyId)` | yes | `void` |
+| `account` | `me()` | yes | `{ owner, tier, keyId }` |
+| `account` | `events(query?)` | yes | `RawEvent[]` |
+| `account` | `positions()` | yes | `RawEvent[]` (your position events, not live rows) |
+| `account` | `orders()` | yes | `RawEvent[]` |
+| `orders` | `prepare(request)` | yes | `PreparedTransaction` = `{ op, trader, xdr, minResourceFee? }` |
+| `tx` | `submit({ signedXdr, pollTimeoutMs? })` | yes | `{ hash, status, ledger? }` |
+| `vaults` | `list(query?)` | no | `VaultRow[]` |
+| `vaults` | `get(id)` | no | `VaultRow` (throws `NotFoundError` on unknown id) |
+| `vaults` | `deposits(id, query?)` | no | `VaultActivityRow[]` |
+| `vaults` | `withdraws(id, query?)` | no | `VaultActivityRow[]` |
+| `vaults` | `feeClaims(id, query?)` | no | `VaultActivityRow[]` |
+| `referral` | `lookupCode(code)` | no | `ReferrerRow`, or `null` on unknown code |
+| `referral` | `me()` | yes | `{ self, binding }` |
+| `referral` | `trades(opts?)` | yes | `ReferralTradeRow[]` |
+| `referral` | `claims(opts?)` | yes | `ReferralClaimRow[]` |
+
+Root-level conveniences on the client itself:
+
+| Method | What it does |
+|---|---|
+| `executeTrade({ request, signer, pollTimeoutMs? })` | `orders.prepare` → your signer signs the XDR → `tx.submit`; returns `{ prepared, submitted }` |
+| `issueKey({ address, signer, label? })` | Alias for `keys.create` |
+| `withCredentials(credentials)` | New client bound to a key |
+| `ws(opts?)` | `WsClient` for the gateway's WebSocket |
+
+## Quickstart: read markets and a price
+
+No API key needed for market data.
+
+```ts
+import { NoetherClient } from 'noether-sdk';
+
+const client = new NoetherClient({
+  baseUrl: 'https://noetherapi-production.up.railway.app',
+});
+
+const markets = await client.markets.list();
+for (const m of markets) {
+  console.log(m.asset.symbol, '→', m.oracle.priceFloat);   // asset is an object: {symbol, name, decimals}
+}
+
+const btc = await client.oracle.getPrice('BTC');
+console.log('BTC oracle:', btc.priceFloat, 'at', new Date(btc.timestamp * 1000));
+// btc.price is the exact 7-decimal integer as a string, e.g. "1180550000000" = $118,055.00
+```
+
+`price` is the exact on-chain 7-decimal fixed-point integer as a decimal string (`10_000_000` = $1.00); `priceFloat` is the lossy float convenience.
+
+## Quickstart: mint an API key
+
+`keys.create` runs the whole wallet-challenge flow: it fetches a challenge, wraps it in a placeholder Stellar transaction, has your signer sign the 32-byte transaction hash, and exchanges the signed XDR for a key. Your Stellar secret never leaves your process.
+
+```ts
+import { Keypair } from '@stellar/stellar-sdk';
+import { NoetherClient } from 'noether-sdk';
+
+const kp = Keypair.fromSecret(process.env.STELLAR_SECRET!);
+const client = new NoetherClient({
+  baseUrl: 'https://noetherapi-production.up.railway.app',
+});
+
+const issued = await client.issueKey({
+  address: kp.publicKey(),
+  signer: (data) => Buffer.from(kp.sign(data)),   // signs 32 bytes (the challenge tx hash)
+  label: 'mm-bot-1',
+});
+console.log(issued.keyId, issued.secret); // store the secret immediately — shown once
+
+const authed = client.withCredentials({ keyId: issued.keyId, secret: issued.secret });
+```
+
+<Callout type="warning">
+  Key issuance is closed-beta gated: if your wallet is not on the access list, `POST /v1/keys` returns 403 `not_in_beta` (an `AuthError` in the SDK). The secret is shown exactly once — only its hash is stored server-side. See [Authentication](/developers/authentication) for the gating details and rate-limit tiers.
+</Callout>
+
+You can also mint a key in the browser with your connected wallet on the app's [API keys page](https://noether.exchange/api-keys), then paste `keyId` and `secret` into `credentials`.
+
+## Quickstart: full trading flow
+
+The gateway never holds your keys. The flow is always **prepare → sign locally → submit**: `orders.prepare` returns an unsigned base64 transaction XDR, you sign it with your `Keypair`, and `tx.submit` sends it on and the gateway polls it to finality. `executeTrade` wraps the three steps.
+
+```ts
+import { Keypair, Networks, TransactionBuilder } from '@stellar/stellar-sdk';
+import { NoetherClient } from 'noether-sdk';
+
+const kp = Keypair.fromSecret(process.env.STELLAR_SECRET!);
+const client = new NoetherClient({
+  baseUrl: 'https://noetherapi-production.up.railway.app',
+  credentials: { keyId: 'nk_...', secret: '...' },
+});
+
+const result = await client.executeTrade({
+  request: {
+    op: 'open_position',
+    asset: 'XLM',
+    collateral: 1000n * 10_000_000n, // 1000 USDC (7-decimal fixed point)
+    leverage: 2,
+    direction: 'Long',
+  },
+  signer: (xdr) => {
+    const tx = TransactionBuilder.fromXDR(xdr, Networks.TESTNET);
+    tx.sign(kp);
+    return tx.toXDR();
+  },
+});
+console.log(result.submitted.hash, result.submitted.status); // 'SUCCESS' | 'FAILED' | 'PENDING' | 'NOT_FOUND'
+```
+
+The manual three-step equivalent:
+
+```ts
+const prepared = await client.orders.prepare(request);
+const signedXdr = signer(prepared.xdr);
+const submitted = await client.tx.submit({ signedXdr });
+```
+
+`orders.prepare` accepts ten `op` values covering the full trading surface: `open_position`, `open_position_cross`, `close_position`, `close_position_cross`, `place_limit_order`, `place_stop_limit_order`, `place_trailing_stop`, `set_stop_loss`, `set_take_profit`, and `cancel_order`. Each has a typed request interface — see [REST API: trading](/developers/rest-api/trading) for every field. The key units:
+
+| Field | Unit |
+|---|---|
+| `collateral`, `triggerPrice`, `limitPrice` | 7-decimal fixed point (`10_000_000` = 1.0); pass `bigint` or a decimal string |
+| `slippageToleranceBps`, `trailingPercentBps` | plain basis points — `50` = 0.50% |
+| `leverage` | plain number, at most 10x on testnet |
+| `direction` | `'Long'` or `'Short'` |
+
+<Callout type="warning">
+  Friendbot only funds XLM. Before `open_position` will succeed, the wallet needs test USDC collateral from the app's [faucet page](https://noether.exchange/faucet) (minimum collateral is 10 USDC, i.e. `100_000_000`).
+</Callout>
+
+## Quickstart: WebSocket streams
+
+`client.ws()` returns a `WsClient` that connects to the gateway's `/v1/ws` endpoint, logs in with your credentials, and manages subscriptions for you.
+
+```ts
+import { NoetherClient } from 'noether-sdk';
+
+const client = new NoetherClient({
+  baseUrl: 'https://noetherapi-production.up.railway.app',
+  credentials: { keyId: 'nk_...', secret: '...' }, // optional — only account.* channels need it
+});
+
+const ws = client.ws({
+  onLog: (level, msg) => console.log(`[ws:${level}] ${msg}`),
+});
+
+await ws.connect(); // resolves when the server sends its hello frame
+
+await ws.subscribe('ticker.BTC', (data) => {
+  const t = data as { asset: string; price: string; priceFloat: number; timestamp: number };
+  console.log(`${t.asset} = ${t.priceFloat}`);
+});
+
+// Private channel: the address must be the authenticated key's owner
+const myAddress = 'G...';
+await ws.subscribe(`account.events.${myAddress}`, (data) => console.log('my event:', data));
+
+// Later: ws.close();
+```
+
+Behavior:
+
+- **Auto-reconnect is on by default** with exponential backoff from 250 ms up to a 30 s cap (`minBackoffMs`, `maxBackoffMs`, `autoReconnect` options). On every reconnect the client re-sends `login` (if credentials are set) and then replays **all** of your subscriptions — handlers keep firing without any code on your side.
+- Handlers receive `(data, channel)`; `data` is the raw JSON payload for that channel.
+- `setCredentials(creds)` swaps the key and re-logins immediately on a live socket; `ping()` sends an application-level ping; `isOpen()` checks the socket state; `close()` stops reconnecting and closes.
+- Public channels: `ticker.<ASSET>` (oracle price roughly every 3 seconds), `trades.<ASSET>` (open/close/liquidation prints), and `events` (all decoded contract events). `account.events.<ADDRESS>` requires login and only accepts your own address. Full frame reference: [WebSocket API](/developers/websocket).
+
+<Callout type="info">
+  In 0.1.1, `connect()` has no timeout: against an unreachable endpoint it keeps retrying in the background and the promise stays pending. The next release adds a connect timeout and rejection on failure (see below).
+</Callout>
+
+## Error classes
+
+All error classes are exported from the package root. Hierarchy: `NoetherError` → `ApiError` → the specific classes.
+
+| Class | Triggered by |
+|---|---|
+| `NetworkError` | fetch/connection failure before any HTTP response (has `.cause`) |
+| `AuthError` | HTTP 401 or 403 — bad or revoked key, stale `X-Timestamp`, closed-beta gate |
+| `NotFoundError` | HTTP 404 — unknown vault id, unknown route |
+| `RateLimitError` | HTTP 429 — has `.retryAfterSec` (number, or `null` when the `Retry-After` header is absent) |
+| `ServerError` | HTTP status 500 and above |
+| `BadRequestError` | any other non-2xx, including 400 (bad op, failed simulation) |
+
+Every `ApiError` carries `.status`, `.body` (the parsed JSON error body, e.g. `{ "error": "simulation_failed" }`), and `.url`; the message is taken from the body's `error` or `message` field. Gateway error codes are cataloged on the [errors page](/developers/errors).
+
+Note: calling an authenticated method on a client constructed without `credentials` throws a plain `Error` locally — no request is sent.
+
+## Coming in the next release
+
+Version 0.1.2 (in the repository, not yet on npm) adds: `positions.open()` (public open-position rows), `vaults.trades(id)`, `referral.info(address)`, `keys.betaStatus()`, and WebSocket hardening — `connect()` rejects on failure or after a 15-second timeout instead of hanging, plus `onLogin` and `onSubscriptionRejected` callbacks and private-channel re-subscription after each login ack. Don't use these against 0.1.1.
+
+## Next steps
+
+- [Authentication](/developers/authentication) — key issuance flow, closed beta, rate-limit tiers
+- [REST API overview](/developers/rest-api) — every endpoint the sub-clients wrap
+- [WebSocket API](/developers/websocket) — channels, frames, connection limits
+- [Python SDK](/developers/sdk-py) — the same surface, async-first
+- Runnable examples: [sdk-ts/examples on GitHub](https://github.com/NoetherDEX/noether/tree/main/sdk-ts/examples) · [noether-sdk on npm](https://www.npmjs.com/package/noether-sdk)

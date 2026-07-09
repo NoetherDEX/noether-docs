@@ -1,3 +1,193 @@
-# Placeholder
+import { Callout } from 'nextra/components'
 
-_Content in progress._
+# Keys, events & health
+
+Reference for the gateway's system endpoints: the five API-key management endpoints, the raw contract event feed (`GET /v1/events`), and the liveness probe (`GET /v1/health`). All paths are relative to the production base URL `https://noetherapi-production.up.railway.app`.
+
+## API key management
+
+Five endpoints manage the full key lifecycle. The first three are public and implement the wallet-challenge issuance flow; the last two require a bearer key. This section summarizes requests and responses — for the full signing walkthrough (what the wallet signs, wallet compatibility, error cases), see [Authentication](/developers/authentication).
+
+<Callout type="warning">
+Key issuance is in closed beta. If your wallet address is not on the access list, `POST /v1/keys` returns `403 {"error":"not_in_beta"}`. Check your status first with `GET /v1/keys/beta-status`. Public endpoints and already-issued keys are unaffected by the gate.
+</Callout>
+
+### `GET /v1/keys/beta-status` — check issuance gating
+
+Public. Optional query param `address` (a 56-character Stellar `G…` address).
+
+```bash
+curl -s "https://noetherapi-production.up.railway.app/v1/keys/beta-status?address=GBTRADER..."
+```
+
+```json
+{ "gated": true, "allowed": false }
+```
+
+`gated` is `true` when an access list is configured. `allowed` is `true` when issuance is open to everyone, or when the supplied address is on the list.
+
+### `POST /v1/keys/challenge` — request a signing challenge
+
+Public. Body: `{"address": "G…"}` (exactly 56 characters).
+
+```bash
+curl -s -X POST https://noetherapi-production.up.railway.app/v1/keys/challenge \
+  -H "content-type: application/json" \
+  -d '{"address":"GBTRADER..."}'
+```
+
+```json
+{ "challengeHex": "9f8e...64 hex chars...", "expiresAt": 1720000300000 }
+```
+
+The challenge is 32 random bytes, hex-encoded. It is single-use, expires after 5 minutes (`expiresAt` is a millisecond epoch), and only one challenge is pending per address — requesting a new one invalidates the previous. A failed verification attempt also burns the challenge, so request a fresh one before retrying.
+
+### `POST /v1/keys` — exchange a signed challenge for a key
+
+Public, but gated by the closed-beta access list (checked before signature verification).
+
+| Field | Required | Notes |
+|---|---|---|
+| `address` | yes | 56-character Stellar `G…` address |
+| `challenge` | yes | The `challengeHex` you received |
+| `signature` | yes | The **full base64 signed transaction XDR** — not a detached signature, despite the name |
+| `label` | no | Free-text label, at most 64 characters |
+
+Success returns `201`:
+
+```json
+{
+  "keyId": "nk_3f9a1c0b8d2e4f6a7b8c9d0e",
+  "secret": "64-hex-char-secret...",
+  "tier": "standard",
+  "owner": "GBTRADER...",
+  "createdAt": 1720000000000
+}
+```
+
+<Callout type="info">
+The `secret` is shown exactly once — only its hash is stored server-side, and there is no way to retrieve it again. Store it immediately. Use the pair as `Authorization: Bearer <keyId>:<secret>` on REST calls, or in the WebSocket `login` op.
+</Callout>
+
+Errors: `403 {"error":"not_in_beta", ...}` (address not on the access list) and `401 {"error":"invalid_signature"}` (bad, expired, or reused challenge; wrong signature; fee-bump transaction; wrong first operation). How to construct the signed transaction is covered step by step in [Authentication](/developers/authentication).
+
+### `GET /v1/keys` — list your keys
+
+Requires a bearer key. Returns every key with the same owner as the authenticated key, newest first, including revoked ones.
+
+```bash
+curl -s https://noetherapi-production.up.railway.app/v1/keys \
+  -H "Authorization: Bearer nk_your_key_id:your_secret"
+```
+
+```json
+{
+  "keys": [
+    {
+      "keyId": "nk_3f9a1c0b8d2e4f6a7b8c9d0e",
+      "owner": "GBTRADER...",
+      "tier": "standard",
+      "label": "trading-bot",
+      "createdAt": 1720000000000,
+      "lastUsedAt": 1720003600000,
+      "revokedAt": null
+    }
+  ]
+}
+```
+
+Timestamps are millisecond epochs. `lastUsedAt` updates on every successful authentication.
+
+### `DELETE /v1/keys/{keyId}` — revoke a key
+
+Requires a bearer key, owner-scoped: a key can revoke any key belonging to the same owner, including itself. Revoked keys fail authentication immediately.
+
+```bash
+curl -s -X DELETE https://noetherapi-production.up.railway.app/v1/keys/nk_3f9a1c0b8d2e4f6a7b8c9d0e \
+  -H "Authorization: Bearer nk_your_key_id:your_secret"
+```
+
+Returns `{"revoked": true}` on success, or `404 {"error":"key_not_found"}` when the key does not exist, belongs to another owner, or is already revoked.
+
+## `GET /v1/events` — raw contract events
+
+Public. Returns decoded on-chain contract events from the indexer, newest first. This is the same data that streams live on the WebSocket `events` channel — see [WebSocket](/developers/websocket).
+
+| Query param | Type | Notes |
+|---|---|---|
+| `topic` | string | Filter by event topic (see below) |
+| `contract` | string | Filter by emitting contract ID |
+| `from_ledger` | integer, at least 0 | Inclusive lower ledger bound |
+| `to_ledger` | integer, at least 0 | Inclusive upper ledger bound |
+| `before_ts` | integer, at least 0 | Pagination cursor: only events with ledger close time strictly less than this unix-seconds value |
+| `limit` | integer, 1–500 | Default 50 |
+
+All parameters are optional. Pagination is cursor-style: take the `ledgerCloseTs` of the last row and pass it as `before_ts` on the next request. There are no page tokens or total counts.
+
+```bash
+curl -s "https://noetherapi-production.up.railway.app/v1/events?topic=funding_applied&limit=1"
+```
+
+```json
+{
+  "events": [
+    {
+      "eventId": "0012760575469703168-0000000000",
+      "contractId": "CC2HH34Q7GOMNBNPSNSQIIUSYYXLYLOOLMUY3ZTFFBLJ2DENWHGS6GNB",
+      "topic": "funding_applied",
+      "ledger": 2971053,
+      "ledgerCloseTs": 1780867142,
+      "txHash": "85895449a4316bea9d27252f3b4e15dbd8f8d3c2c7c27485160ffe791d8182e0",
+      "payload": { "topic": "funding_applied", "fundingRate": "-171", "hoursElapsed": "1" },
+      "insertedAt": 1780867143077
+    }
+  ]
+}
+```
+
+`ledgerCloseTs` is unix seconds; `insertedAt` is a millisecond epoch. `payload` is the decoded event body and its shape varies per topic. Market topics include `position_opened`, `position_closed`, `position_liquidated`, `order_placed`, `order_executed`, `order_cancelled`, and `funding_applied`; vault and referral contracts emit their own topics. The exact on-chain event tuples behind these payloads are documented in [Contracts](/protocol/contracts).
+
+## `GET /v1/health` — liveness and configuration probe
+
+Public and **exempt from rate limits** — safe to poll from monitoring. Beyond a liveness check, it echoes the **resolved contract addresses this gateway deployment actually serves**, which is the quickest way to verify what a gateway instance points at.
+
+```bash
+curl -s https://noetherapi-production.up.railway.app/v1/health
+```
+
+```json
+{
+  "status": "ok",
+  "uptime": 207584.19,
+  "version": "0.1.0",
+  "network": "testnet",
+  "contracts": {
+    "market":        { "address": "CAE3U7JKESRWZHPEQ72DVNGOQ6WPA7HSPQZL5YV46NPCE4TMUPAGYMEC", "source": "manifest" },
+    "vault":         { "address": "CBLVZZ557ALB342GBQIMC2E3IYXJ5AEL7XSVMPX36CVLKRDQGDH22UL6", "source": "manifest" },
+    "noeracleShim":  { "address": "CBY4YLPYEN5GMV4JMVZGCSU433SO5JTEGCS66GIT3EZOUG2CN2TWT6UK", "source": "manifest" },
+    "noetherRouter": { "address": "CDH4CY3XMUZ7H73LC3WJYR3AG56U4MTIBMR2WHNORXDTWLLBOQII44S4", "source": "manifest" },
+    "usdcToken":     { "address": "CA63EPM4EEXUVUANF6FQUJEJ37RWRYIXCARWFXYUMPP7RLZWFNLTVNR4", "source": "manifest" },
+    "noeToken":      { "address": "CD7VRBXIDYP2C2F2AZZL242GY4PRDVDH2BG3LAN2ASXYUXCPHWQJTDP5", "source": "manifest" },
+    "vaultFactory":  { "address": "CAZPVI2PLDQJGDDGULG7FSVNYO3B7BTWTTK5OWVH5SSWN7SJ4ZCBTVP5", "source": "manifest" },
+    "referral":      { "address": "CCV5NWLGQTCRFFOTHJDQVFOOLAEUPQTWMPTNNHR2EU64BULV77W5GXEE", "source": "manifest" }
+  },
+  "indexer": { "lastLedger": 2971053, "lastUpdatedAt": 1780867143252, "ledgerAgeSeconds": 2763198 }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `status`, `uptime`, `version` | Liveness; `uptime` is process seconds |
+| `network` | `testnet` — the live deployment runs on Stellar testnet |
+| `contracts` | Map of all eight contracts to `{address, source}`; `source` is `"manifest"` (baked deployment manifest) or `"env"` (environment override) |
+| `indexer.lastLedger` | Last ledger the indexer read-side has processed |
+| `indexer.lastUpdatedAt` | Millisecond epoch of the last indexer write |
+| `indexer.ledgerAgeSeconds` | How far the indexer read-side lags behind now |
+
+Endpoints backed by indexer projections (`/v1/events`, `/v1/trades`, `/v1/leaderboard`, `/v1/positions/open`, and others) can lag behind the chain; live oracle price endpoints do not. Before relying on projection data, check `indexer.ledgerAgeSeconds` here. On a fresh deployment with no indexed data yet, the `indexer` fields are `null`.
+
+## Next steps
+
+- [Authentication](/developers/authentication) — the full challenge-signing flow with wallet code
+- [WebSocket](/developers/websocket) — stream the same events live instead of polling
+- [API explorer](/developers/api-explorer) — try these endpoints interactively

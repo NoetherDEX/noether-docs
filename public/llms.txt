@@ -1,0 +1,52 @@
+# Noether Documentation
+
+> Noether is a decentralized perpetual futures exchange on Stellar — orders, matches, and
+> settlement all execute on-chain in Soroban smart contracts. These docs cover the trading
+> app, the REST + WebSocket API, the TypeScript and Python SDKs, and the protocol itself.
+
+- App: https://noether.exchange/trade (Stellar testnet)
+- API base URL: https://noetherapi-production.up.railway.app (OpenAPI: /docs/json)
+- SDKs: npm + PyPI package "noether-sdk"
+
+## Overview
+
+- [Introduction](/): Noether is a decentralized perpetual futures exchange on Stellar. Every order, match, and settlement executes in Soroban smart contracts — positions, liquidations, and funding payments are all on-chain transactions you c
+
+## User Guides
+
+- [FAQ](/guides/faq): Quick answers to the questions traders and builders ask most. For step-by-step walkthroughs, start with Getting started; for mechanics and exact parameters, see Trading mechanics.
+- [Getting started](/guides/getting-started): This guide takes you from an empty browser to your first perpetual futures trade on Noether. You need about ten minutes, a browser wallet (or a mobile Stellar wallet), and nothing else — every asset you will use is free 
+- [Referrals](/guides/referrals): Noether has an on-chain referral program. This page shows you how to create your referral code, share it, and how referees bind to it — plus what the program pays once fee sharing goes live.
+- [Trader Vaults](/guides/trader-vaults): Trader Vaults are user-created copy-trading vaults: a leader trades a shared pool of USDC, depositors hold shares of it, and the leader earns 10% of any gains above the vault's high-water mark. This page covers both side
+- [Trading guide](/guides/trading): This is the complete manual for trading perpetual futures on Noether: markets and limits, every order type, isolated vs cross margin, fees, funding, and liquidation. It assumes you already have a connected wallet with te
+- [Liquidity Vault guide](/guides/vault): This guide is for depositors: what the Liquidity Vault is, how to deposit USDC and withdraw it, and the risks you take on as a liquidity provider. Everything here runs on Stellar testnet with test funds — see Getting sta
+
+## Developers
+
+- [Developer overview](/developers): Noether exposes a public JSON REST API, a WebSocket stream, and TypeScript and Python SDKs — everything the app at https://noether.exchange uses is available to you. This page is the map: base URL, authentication, rate l
+- [API Explorer](/developers/api-explorer): Browse every REST endpoint interactively — request/response schemas, parameters, and
+- [Authentication](/developers/authentication): The gateway authenticates requests with API keys. You get a key by proving control of a Stellar wallet: request a challenge, sign it with the wallet, and exchange the signed proof for a `keyId` + `secret` pair. This page
+- [Error reference](/developers/errors): Every error you can hit while integrating with Noether, in one place: the HTTP errors the gateway returns, how failed on-chain transactions surface in API responses, and the complete contract error code tables for the ma
+- [Python SDK](/developers/sdk-py): `noether-sdk` on PyPI is the official async Python client for the Noether gateway: REST sub-clients for markets, oracle prices, accounts, order preparation and transaction submission, plus a reconnecting WebSocket client
+- [TypeScript SDK](/developers/sdk-ts): `noether-sdk` is the official TypeScript client for the Noether gateway. It wraps every REST endpoint and the WebSocket stream behind typed sub-clients, and handles API-key issuance, transaction preparation, and submissi
+- [WebSocket API](/developers/websocket): The gateway streams live market data and account events over a single WebSocket endpoint. This page is the full protocol reference: connection, client and server frames, all four channel families, limits, and reconnect b
+
+## REST API Reference
+
+- [REST API overview](/developers/rest-api): Conventions used across the Noether REST reference: base URL, authentication legend, pagination, error shapes, and rate limits, followed by a directory of every endpoint. For a guided first request, start at /developers;
+- [Account](/developers/rest-api/account): Reference for the account endpoints of the gateway: your key identity, your events, your open positions, your order history, and the public 14-day volume lookup. Base URL: `https://noetherapi-production.up.railway.app`.
+- [Markets & market data](/developers/rest-api/markets): Public market-data endpoints of the Noether gateway: the market list, per-asset detail, open interest and volume stats, recent trades, OHLC candles, and the trader leaderboard. Every endpoint on this page is public — no 
+- [Oracle & prices](/developers/rest-api/oracle): Two public endpoints return the current oracle price for Noether's markets: `GET /v1/oracle/prices` (all assets at once) and `GET /v1/markets/{asset}/price` (one asset). Both are live chain reads — the gateway queries th
+- [Positions](/developers/rest-api/positions): Read open positions across the venue, or filter to a single trader. One endpoint, public, no API key required.
+- [Referral](/developers/rest-api/referral): Endpoints for the on-chain referral system: resolve referral codes, inspect referrer profiles and bindings, and (with an API key) read your own referral state, referred trades, and claims. For the end-user flow, see Refe
+- [Keys, events & health](/developers/rest-api/system): Reference for the gateway's system endpoints: the five API-key management endpoints, the raw contract event feed (`GET /v1/events`), and the liveness probe (`GET /v1/health`). All paths are relative to the production bas
+- [Trading (orders & tx)](/developers/rest-api/trading): This page covers the two endpoints that place and execute trades through the gateway: `POST /v1/orders/prepare` and `POST /v1/tx/submit`. Both require an API key — see Authentication.
+- [Vaults](/developers/rest-api/vaults): Reference for the Trader Vault endpoints: the marketplace list, single-vault detail, and per-vault history feeds (trades, deposits, withdraws, fee claims). All six endpoints are public — no API key required. For what Tra
+
+## Protocol
+
+- [Architecture](/protocol/architecture): Noether is a fully on-chain perpetual futures exchange on Stellar: every position, order, liquidation, and settlement is executed by Soroban smart contracts. This page maps the whole system — six on-chain contracts and f
+- [Contract addresses & events](/protocol/contracts): This page is the on-chain reference for Noether: every deployed contract address on the live stack, the network configuration to reach them, and the complete list of events each contract emits — with exact field order, s
+- [Networks](/protocol/networks): Noether currently runs on the Stellar **testnet**. This page lists the network configuration you need to connect a wallet, an SDK, or your own tooling — and what is planned for mainnet.
+- [Oracle & price feeds](/protocol/oracle): Every trade on Noether settles against an oracle price. This page explains where that price comes from, how it gets on-chain, and the guard rails that decide when the market will — and won't — accept it. It is written fo
+- [Trading mechanics](/protocol/trading-mechanics): This page defines the exact math the market contract uses: precision conventions, PnL, margin, funding, liquidation, fees, open-interest caps, and the order-execution details integrators need. All values below are the pa

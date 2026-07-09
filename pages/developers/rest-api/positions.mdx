@@ -1,3 +1,75 @@
-# Placeholder
+import { Callout } from 'nextra/components'
 
-_Content in progress._
+# Positions
+
+Read open positions across the venue, or filter to a single trader. One endpoint, public, no API key required.
+
+## Get open positions
+
+```text
+GET /v1/positions/open
+```
+
+Returns positions that have been opened and not yet closed or liquidated. Positions are materialized from on-chain `position_opened` events minus subsequent `position_closed` and `position_liquidated` events.
+
+**Auth:** none (public). Unauthenticated requests fall under the public rate-limit tier (60 requests/min per IP).
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `trader` | string | no | Stellar address to filter by. Returns only that trader's open positions. |
+
+There is no `limit` parameter. The response is hard-capped at **200 rows** for the venue-wide query and **500 rows** when filtered by `trader`.
+
+### Example request
+
+```bash
+curl -s "https://noetherapi-production.up.railway.app/v1/positions/open?trader=CCEQJKB3WVADOSCLCMFXL3VBZ4RKYEGFCG4SJVPERLFEWSIFMIWROLZA"
+```
+
+### Example response
+
+```json
+{
+  "positions": [
+    {
+      "positionId": 331,
+      "trader": "CCEQJKB3WVADOSCLCMFXL3VBZ4RKYEGFCG4SJVPERLFEWSIFMIWROLZA",
+      "asset": "BTC",
+      "direction": 0,
+      "size": "285300000000",
+      "entryPrice": "622093708225",
+      "openedAt": 1780818917,
+      "openedTxHash": "eb9260de713579311368a9eba7f3e10a10a1a8e225bec79312d8a1cace7b9b8c"
+    }
+  ]
+}
+```
+
+### Response fields
+
+| Field | Type | Description |
+|---|---|---|
+| `positionId` | integer | On-chain position ID. |
+| `trader` | string | Position owner. Can be an account address (`G…`) or a contract address (`C…`) — Trader Vaults trade as contracts. |
+| `asset` | string | Asset symbol, e.g. `BTC`. |
+| `direction` | integer | `0` = long, `1` = short. |
+| `size` | string | Position size in USDC notional, 7-decimal fixed point (`"285300000000"` = $28,530). |
+| `entryPrice` | string | Entry price, 7-decimal fixed point (`"622093708225"` = $62,209.37). |
+| `openedAt` | integer | Open time, unix seconds. |
+| `openedTxHash` | string | Hash of the opening transaction. |
+
+<Callout type="info">
+This endpoint is served from the indexer projection, not a live chain read, so it can lag the chain. Check `GET /v1/health` and read `indexer.ledgerAgeSeconds` to see how far behind the projection is. If the projection has no data yet, the endpoint returns `{"positions":[]}` rather than an error.
+</Callout>
+
+## Your own positions
+
+If you hold an API key, `GET /v1/account/me/positions` returns your open positions in the same row shape, plus your recent position events — see [Account](/developers/rest-api/account).
+
+## Next steps
+
+- [Authentication](/developers/authentication) — get an API key for the authed endpoints
+- [Trading](/developers/rest-api/trading) — open and close positions via prepare → sign → submit
+- [Markets](/developers/rest-api/markets) — recent realized trades and per-asset open interest

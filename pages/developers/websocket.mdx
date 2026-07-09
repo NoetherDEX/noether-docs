@@ -1,3 +1,271 @@
-# Placeholder
+import { Callout, Tabs } from 'nextra/components'
 
-_Content in progress._
+# WebSocket API
+
+The gateway streams live market data and account events over a single WebSocket endpoint. This page is the full protocol reference: connection, client and server frames, all four channel families, limits, and reconnect behavior. If you just want a working client, both the [TypeScript SDK](/developers/sdk-ts) and [Python SDK](/developers/sdk-py) ship a WebSocket client with auto-reconnect built in.
+
+## Endpoint
+
+```text
+wss://noetherapi-production.up.railway.app/v1/ws
+```
+
+- No authentication is required to connect. Public channels (`events`, `ticker.*`, `trades.*`) work immediately; only `account.events.*` requires an in-band login (see below).
+- The protocol is JSON over text frames in both directions.
+- On connect, the server immediately sends a `hello` frame.
+
+<Callout type="info">
+The HTTP upgrade request itself counts against the gateway's HTTP rate limit — each connection attempt consumes one request from your bucket (60/min per IP on the public tier, 600/min if you attach a valid `Authorization: Bearer` header to the upgrade request). Reconnect loops without backoff will hit HTTP 429 before they hit any WebSocket limit.
+</Callout>
+
+## Client → server messages
+
+There are exactly four operations. Any other `op` value is answered with an `unknown_op` error.
+
+```json
+{ "op": "subscribe",   "channels": ["ticker.BTC", "events"] }
+{ "op": "unsubscribe", "channels": ["ticker.BTC"] }
+{ "op": "login",       "keyId": "nk_...", "secret": "..." }
+{ "op": "ping" }
+```
+
+Validation rules:
+
+| Rule | On violation |
+|---|---|
+| Frame must be valid JSON | `{"type":"error","error":"invalid_json"}` |
+| `op` must be one of the four above | `{"type":"error","error":"unknown_op","detail":"..."}` |
+| `channels` must be an array of non-empty strings, each at most 200 characters | `{"type":"error","error":"invalid_channels"}` (the whole message is rejected) |
+| `login` must carry string `keyId` and `secret` | `{"type":"login","ok":false,"error":"missing_credentials"}` |
+
+`login` uses the same API key pair (`keyId` + `secret`) as REST bearer auth — see [Authentication](/developers/authentication) for how to obtain one. There are no per-message request ids; replies are correlated by type and arrival order.
+
+## Server → client messages
+
+Every frame the server can send:
+
+```json
+{ "type": "hello", "ts": 1720000000000 }
+{ "type": "subscribed", "channels": ["ticker.BTC"] }
+{ "type": "unsubscribed", "channels": ["ticker.BTC"] }
+{ "type": "rejected", "channels": ["ticker.PEPE", "unknown"] }
+{ "type": "login", "ok": true, "owner": "G...", "tier": "standard" }
+{ "type": "login", "ok": false, "error": "invalid_credentials" }
+{ "type": "pong", "ts": 1720000000000 }
+{ "type": "error", "error": "invalid_json" }
+{ "channel": "ticker.BTC", "data": { } }
+```
+
+Semantics worth knowing:
+
+- A single `subscribe` with a mix of valid and invalid channels produces up to two replies: a `subscribed` frame listing only the accepted channels (sent only if at least one was accepted) and a `rejected` frame listing the refused ones.
+- `unsubscribe` always echoes all requested channels back in `unsubscribed` — the server does not check that you were actually subscribed.
+- Subscriptions deliver future broadcasts only. There is no snapshot or replay of missed data on subscribe.
+- The `error.error` values the server emits are `invalid_json`, `invalid_channels`, `unknown_op` (with a `detail` field), and `rate_limited`.
+- Data frames always have the shape `{"channel": "...", "data": ...}`.
+- App-level `{"op":"ping"}` is optional — the server also sends protocol-level ping frames that your WebSocket library answers automatically (see [Limits and lifecycle](#limits-and-lifecycle)).
+
+## Channels
+
+There are exactly four channel families. Any channel name that doesn't match one of them is rejected.
+
+### `events` — public event firehose
+
+Every decoded contract event, in ledger order. Data is sourced from the indexer, which the gateway polls every second — expect roughly one to a few seconds of latency behind the chain.
+
+```json
+{
+  "channel": "events",
+  "data": {
+    "topic": "position_opened",
+    "ledger": 1234567,
+    "ledgerCloseTs": 1720000000,
+    "txHash": "abc123…",
+    "trader": "GBTRADER…",
+    "raw": { "positionId": 7, "asset": "BTC", "entryPrice": "650000000000" }
+  }
+}
+```
+
+- `trader` is present only when the decoded event names one.
+- `raw` is the decoded event payload verbatim; its fields vary by `topic`.
+- `ledgerCloseTs` is unix seconds.
+
+### `ticker.<ASSET>` — oracle price stream
+
+Live oracle prices per asset, e.g. `ticker.BTC`. The gateway polls the oracle every 3 seconds and emits a frame **every tick, whether or not the price changed** — you can treat it as a data heartbeat.
+
+```json
+{
+  "channel": "ticker.BTC",
+  "data": {
+    "asset": "BTC",
+    "price": "650123400000",
+    "priceFloat": 65012.34,
+    "timestamp": 1720000000,
+    "ts": 1720000000123
+  }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `price` | 7-decimal fixed-point integer as a string (10_000_000 = $1.00, so `"650123400000"` = $65,012.34) |
+| `priceFloat` | Same price as a plain number, for display |
+| `timestamp` | Unix seconds of the oracle price itself (use this for freshness checks) |
+| `ts` | Unix milliseconds when the gateway broadcast the frame |
+
+### `trades.<ASSET>` — public trade prints
+
+Trade prints derived from position events (`position_opened`, `position_closed`, `position_liquidated`), e.g. `trades.ETH`.
+
+```json
+{
+  "channel": "trades.BTC",
+  "data": {
+    "kind": "close",
+    "asset": "BTC",
+    "positionId": 42,
+    "trader": "GBTRADER…",
+    "price": "650123400000",
+    "pnl": "125000000",
+    "ledger": 1234567,
+    "ts": 1720000000000,
+    "txHash": "abc123…"
+  }
+}
+```
+
+- `kind` is `"open"`, `"close"`, or `"liquidation"`.
+- `price` is a 7-decimal fixed-point string; `pnl` is present only when the underlying event carried one.
+- `ts` is unix milliseconds (ledger close time × 1000).
+
+### `account.events.<G-ADDRESS>` — your account's event stream (authed)
+
+A private stream of every decoded event that names your address — position events, order events, and the rest. Two requirements:
+
+1. You must complete a successful `login` on the same connection first.
+2. The address in the channel name must exactly equal the logged-in key's owner. Subscribing to any other address is `rejected`.
+
+```json
+{
+  "channel": "account.events.GBTRADER…",
+  "data": {
+    "topic": "order_placed",
+    "ledger": 1234568,
+    "ledgerCloseTs": 1720000100,
+    "txHash": "def456…",
+    "trader": "GBTRADER…",
+    "owner": "GBTRADER…",
+    "raw": { "orderId": 9, "triggerPrice": "640000000000" }
+  }
+}
+```
+
+<Callout type="warning">
+Order matters: a `subscribe` for `account.events.*` sent before the login ack arrives is rejected, because the server may process it while the connection is still anonymous. Wait for `{"type":"login","ok":true}` before subscribing to private channels — the official SDKs handle this by re-sending all `account.*` subscriptions after every successful login ack.
+</Callout>
+
+### Supported asset symbols
+
+`ticker.<ASSET>` and `trades.<ASSET>` accept exactly these 14 symbols; anything else (for example `ticker.PEPE`) is rejected:
+
+```text
+BTC, ETH, XLM, SOL, XRP, ADA, BNB, TRX, HYPE, DOGE, ZEC, LINK, BCH, LTC
+```
+
+## Limits and lifecycle
+
+| Limit | Default | On breach |
+|---|---|---|
+| Global concurrent connections | 1000 | Closed at accept with code 1013, reason `server_full` |
+| Concurrent connections per IP | 20 | Closed at accept with code 1013, reason `too_many_connections` |
+| Per-connection message rate | 20 messages/second (token bucket, burst 20) | `{"type":"error","error":"rate_limited"}`, then closed with code 1013, reason `rate limit exceeded` |
+| Send-buffer backpressure | 1 MiB (1,048,576 bytes) | Slow consumer is skipped during broadcast, then closed with code 1013, reason `backpressure` |
+| Heartbeat sweep | Protocol-level ping every 30 seconds | A socket that misses one pong before the next sweep is terminated without a close frame |
+
+Notes:
+
+- Breaking the message-rate or backpressure limit **closes the socket** — the server does not just drop the offending message.
+- Standard WebSocket libraries (browsers, `ws` for Node, `websockets` for Python) answer protocol-level pings automatically, so the heartbeat needs no code on your side. If your client cannot see protocol pings, send `{"op":"ping"}` periodically and watch for `pong` to detect dead connections yourself.
+- WebSocket data frames are not counted against the HTTP rate limit — only the upgrade request is.
+
+## Reconnecting
+
+Connections drop: deploys, network blips, heartbeat terminations, limit closures. Build for it:
+
+1. Reconnect with **exponential backoff** (for example, start at 250 ms and double up to a 30-second cap). A tight reconnect loop burns your HTTP rate limit on upgrade requests.
+2. On every (re)connect: wait for `hello`, send `login` if you use private channels, wait for the login ack, then re-send one `subscribe` with all your channels. The server keeps no subscription state across connections.
+3. Expect a gap: there is no replay, so anything broadcast while you were disconnected is gone. For a consistent picture after a reconnect, re-fetch current state from the [REST API](/developers/rest-api) and use the stream for updates from there.
+
+Both official SDKs implement all of this — auto-reconnect with exponential backoff (250 ms to 30 s), automatic re-login, and full subscription replay on every reconnect, with private `account.*` channels re-sent after each successful login ack. See [TypeScript SDK](/developers/sdk-ts) and [Python SDK](/developers/sdk-py).
+
+## Examples
+
+<Tabs items={['Browser JavaScript', 'wscat']}>
+<Tabs.Tab>
+
+```ts
+// Works in any browser; in recent Node versions the global WebSocket works the same way.
+const ws = new WebSocket('wss://noetherapi-production.up.railway.app/v1/ws')
+
+ws.onopen = () => {
+  // Public channels need no login.
+  ws.send(JSON.stringify({ op: 'subscribe', channels: ['ticker.BTC', 'trades.BTC'] }))
+}
+
+ws.onmessage = (event) => {
+  const msg = JSON.parse(event.data)
+  if (msg.type === 'hello') console.log('connected')
+  if (msg.type === 'rejected') console.warn('rejected channels:', msg.channels)
+  if (msg.channel === 'ticker.BTC') console.log('BTC mark:', msg.data.priceFloat)
+  if (msg.channel === 'trades.BTC') console.log('trade:', msg.data.kind, msg.data.positionId)
+}
+
+ws.onclose = (event) => {
+  // 1013 = a server-side limit was hit; back off before reconnecting.
+  console.log('closed', event.code, event.reason)
+}
+```
+
+To use a private channel, log in first and wait for the ack:
+
+```ts
+ws.send(JSON.stringify({ op: 'login', keyId: 'nk_...', secret: '...' }))
+// ...after receiving {"type":"login","ok":true,"owner":"G..."}:
+ws.send(JSON.stringify({ op: 'subscribe', channels: [`account.events.${owner}`] }))
+```
+
+</Tabs.Tab>
+<Tabs.Tab>
+
+```bash
+wscat -c wss://noetherapi-production.up.railway.app/v1/ws
+```
+
+```text
+Connected (press CTRL+C to quit)
+< {"type":"hello","ts":1720000000000}
+> {"op":"subscribe","channels":["ticker.BTC","ticker.PEPE"]}
+< {"type":"subscribed","channels":["ticker.BTC"]}
+< {"type":"rejected","channels":["ticker.PEPE"]}
+< {"channel":"ticker.BTC","data":{"asset":"BTC","price":"650123400000","priceFloat":65012.34,"timestamp":1720000000,"ts":1720000000123}}
+> {"op":"ping"}
+< {"type":"pong","ts":1720000000456}
+> {"op":"login","keyId":"nk_3f9a1c0b8d2e4f6a7b8c9d0e","secret":"<your-64-hex-secret>"}
+< {"type":"login","ok":true,"owner":"GBTRADER…","tier":"standard"}
+> {"op":"subscribe","channels":["account.events.GBTRADER…"]}
+< {"type":"subscribed","channels":["account.events.GBTRADER…"]}
+> {"op":"unsubscribe","channels":["ticker.BTC"]}
+< {"type":"unsubscribed","channels":["ticker.BTC"]}
+```
+
+</Tabs.Tab>
+</Tabs>
+
+## Next steps
+
+- [Authentication](/developers/authentication) — get the `keyId` + `secret` pair used by the `login` op
+- [REST API](/developers/rest-api) — fetch current state to pair with the stream
+- [TypeScript SDK](/developers/sdk-ts) and [Python SDK](/developers/sdk-py) — ready-made WebSocket clients
+- [Oracle](/protocol/oracle) — where `ticker.*` prices come from

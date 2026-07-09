@@ -21,7 +21,7 @@ const config: DocsThemeConfig = {
   banner: {
     key: 'testnet-live',
     content: (
-      <a href="https://testnet.noether.exchange/trade" target="_blank" rel="noreferrer">
+      <a href="https://noether.exchange/trade" target="_blank" rel="noreferrer">
         🧪 Noether is live on Stellar testnet — try it →
       </a>
     )

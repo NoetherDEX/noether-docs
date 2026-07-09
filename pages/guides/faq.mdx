@@ -1,3 +1,126 @@
-# Placeholder
+import { Callout } from 'nextra/components'
 
-_Content in progress._
+# FAQ
+
+Quick answers to the questions traders and builders ask most. For step-by-step walkthroughs, start with [Getting started](/guides/getting-started); for mechanics and exact parameters, see [Trading mechanics](/protocol/trading-mechanics).
+
+## Getting started
+
+### Do testnet funds have any real value?
+
+No. Noether runs on the Stellar **testnet**. The USDC you claim from the faucet, the XLM from friendbot, and the NOE you receive from the Liquidity Vault are all test assets with zero monetary value. They cannot be bought, sold, or withdrawn to any real network. Trade freely — nothing here is real money.
+
+### Which wallets can I use?
+
+- **Freighter** and other browser-extension wallets supported by the Stellar Wallets Kit (xBull and others).
+- **LOBSTR (via WalletConnect)** and other mobile wallets — pick "WalletConnect" in the connect dialog and scan the QR code with your wallet app.
+
+The **LON wallet is not supported** — it does not correctly sign Soroban authorization entries, so transactions built by Noether fail. Use Freighter or LOBSTR instead.
+
+### How do I get test USDC?
+
+Use the faucet page in the app. It walks you through three steps: activate your account (friendbot funds it with testnet XLM), add the USDC trustline (one wallet signature), then claim **100, 500, or 1,000 USDC** per claim, up to **1,000 USDC per address per UTC day**. The claim itself needs no signature — the faucet sends you a payment directly. Keep at least 1 XLM in the account for transaction fees.
+
+### Which markets can I trade?
+
+The app lists **13 perpetual pairs**: BTC, ETH, XLM, SOL, XRP, ADA, BNB, TRX, DOGE, ZEC, LINK, BCH, and LTC — each as `SYM-PERP`, settled in test USDC. A 14th pair, HYPE-PERP, is supported by the protocol and the [REST API](/developers) but is not shown in the web app. All pairs share the same parameters: up to 10x leverage, 10 USDC minimum collateral, $100,000 maximum position size.
+
+### Why can't I access trading from my region?
+
+Leveraged derivatives are not offered to persons in the **United States, Cuba, Iran, North Korea, Syria, Russia, Belarus, or Ontario (Canada)**. Visiting the trade, portfolio, or vault pages from those regions shows a "Trading not available in your region" page instead. Circumventing the restriction with a VPN is prohibited under the Terms of Service. The landing page, faucet, referrals, leaderboard, and API-keys pages remain accessible everywhere.
+
+## Trading
+
+### Why did my trade fail?
+
+The most common causes:
+
+- **Collateral below the minimum.** Every position needs at least **10 USDC** of collateral. The taker fee is also deducted from collateral, so an amount right at the minimum can still be rejected.
+- **Oracle price unavailable or stale.** Opening a position requires an oracle price no older than **60 seconds**. The app attaches a freshly signed Noeracle price to each trade; if the Noeracle price service is unreachable, the trade fails fast with "Noeracle price unavailable — cannot open position". Wait a moment and retry.
+- **Deviation guard tripped.** If the price moved more than **1%** against the last recorded price within the last 10 minutes, new opens are rejected (`PriceDeviationTooHigh`) as a manipulation defense. Closes and liquidations are never blocked by this guard — you can always reduce risk. Retry once the price settles.
+- **Position or pool caps.** Position size (collateral × leverage) is capped at **$100,000**. On top of that, the Liquidity Vault caps its exposure: roughly 25% of pool assets per asset per side, and 70% overall. Hitting a cap returns `OpenInterestCapExceeded` — try a smaller size or a different pair.
+- **Not enough XLM for gas.** Keep at least 1 XLM in your account; the app warns when you run low.
+- **Rejected in the wallet.** If you decline the signature, the app shows "Transaction rejected in wallet" — nothing was submitted.
+
+The full error list with codes is on the [errors reference](/developers/errors).
+
+### Do I pay a fee to close a position?
+
+No. Trading fees are charged when a position **opens** — the taker fee (0.050% at the base tier) for market opens, the maker fee (0.020%) when a resting limit or stop-limit order fills. Market closes charge no trading fee, although the closed size still counts toward your 14-day fee-tier volume. One nuance: orders executed by keepers on your behalf (limit entries, stop-loss, take-profit, trailing stops) carry a small keeper fee of 0.50 USDC plus 0.05% of position size, deducted from the order's or position's collateral.
+
+### Can I close part of a position?
+
+Not currently — closes are always full-size, and there is no way to add collateral to an open position. To resize, close the position and reopen with the collateral and leverage you want. A reduce-only limit order can also close an opposing position for you when its trigger hits.
+
+### Why was my limit order cancelled?
+
+Pending orders are executed by keeper bots when their trigger price is reached, and a few outcomes end in cancellation rather than a fill:
+
+- **Slippage exceeded.** Every order carries a slippage tolerance (default 0.5%). If the execution price differs from your reference price by more than that tolerance when the keeper fires, the order is cancelled instead of filled and any locked collateral is refunded. The app shows "order cancelled — slippage exceeded".
+- **IOC not filled.** An Immediate-Or-Cancel order that cannot fill at placement time is cancelled on the spot, with collateral refunded.
+- **Post Only would have filled.** A Post-Only order whose trigger condition is already met is rejected at placement — it exists to guarantee the maker fee.
+- **Position closed.** Stop-loss, take-profit, and trailing-stop orders attached to a position are automatically cancelled when that position closes or is liquidated.
+- **Reduce-only with nothing to reduce.** A reduce-only order that finds no opposing position to close is cancelled with its collateral refunded.
+
+Cancelling an order yourself always refunds the escrowed collateral for limit and stop-limit entries.
+
+### When is funding charged?
+
+Funding accrues hourly (base rate 0.01% per hour at full long/short imbalance; positive means longs pay shorts) but is settled **lazily**: nothing moves while your position is open. The accumulated funding is applied once, when the position **closes or is liquidated**. If funding accrued in your favor, you receive it on top of your collateral and PnL at close. Funding is included in margin and liquidation health checks, so it can affect when a position becomes liquidatable.
+
+### What happens when I get liquidated?
+
+For an **isolated** position: when the mark price reaches your liquidation price (about a 9% adverse move at 10x leverage with the 1% maintenance margin), a keeper closes the position. A **5% liquidation fee** is taken from whatever equity remains (capped at 10% of your collateral) as the keeper's reward, and the remaining collateral goes to the Liquidity Vault — you receive nothing back from a liquidated position.
+
+For a **cross-margin** account: liquidation is account-level. When your whole-account equity falls below the maintenance margin (1% of total position size), **all** cross positions are closed together in one transaction, and the remaining pool balance is forfeited. Watch the margin-ratio banner above your positions list — it turns red at the liquidation threshold.
+
+<Callout type="warning">
+Liquidation forfeits your remaining collateral. Use the liquidation-price preview in the order panel, keep leverage moderate, and set a stop-loss on isolated positions to exit before the liquidation price is reached.
+</Callout>
+
+### Why can't I set a stop-loss on my cross-margin position?
+
+This is a current limitation. The contract rejects stop-loss, take-profit, and trailing-stop orders on cross positions (`CrossMarginOrderNotSupported`), and the app disables those buttons with the note "Unavailable for cross-margin positions (contract fix pending)". A contract fix is planned. Until then, use **isolated margin** for any position you want protected by attached orders, and monitor cross accounts via the margin-ratio banner.
+
+## Vaults
+
+### Why does withdrawing from the Liquidity Vault take two signatures?
+
+NOE, the vault's LP share token, is a classic Stellar asset. The vault pulls NOE back from your account when you withdraw, and Stellar requires you to authorize that pull first. So a withdrawal is always two wallet signatures: first **approve** the vault to spend your NOE, then **withdraw**. The app labels the steps "1/2 Approving NOE…" and "2/2 Withdrawing…" and the whole flow takes up to about 40 seconds. If the first step fails, nothing was withdrawn; if the second fails, no USDC left the pool. Deposits, by contrast, are a single signature. See [Liquidity Vault](/guides/vault).
+
+### What is the difference between the Liquidity Vault and Trader Vaults?
+
+The **Liquidity Vault** is the protocol's LP pool and the counterparty to every trade: you deposit USDC, receive NOE shares, and your value rises when traders lose and falls when they win. **Trader Vaults** are user-created copy-trading vaults: anyone can launch one, depositors buy shares, and the vault's leader trades the pooled USDC — keeping 10% of profits above the high-water mark while being required to hold at least 5% of the vault themselves. They are separate products with separate risk profiles; see [Liquidity Vault](/guides/vault) and [Trader Vaults](/guides/trader-vaults).
+
+## API and beta
+
+### What is the closed beta?
+
+Two things are gated behind a wallet allowlist right now:
+
+- **API key issuance** — the api-keys page (and the gateway's key-issuance endpoint) only serves allowlisted wallets. Non-allowlisted wallets see "Your wallet is not on the allowlist yet".
+- **Referral analytics dashboard** — the "Advanced — full dashboard" section of the referrals page requires the same allowlist.
+
+Everything else is open: trading in the app, the Liquidity Vault, Trader Vaults, the faucet, the leaderboard, referral code creation and binding, and all public read-only API endpoints. To request access, DM [@Noetherdex on X](https://x.com/Noetherdex) or join the Discord with your wallet address — allowlisting typically takes about a day.
+
+### I bound a referral code — where is my 4% discount?
+
+It is coming, not live yet. Referral codes and bindings are fully on-chain today: registering a code and binding to a referrer each take one wallet signature, and a binding is **permanent**. But the economics — the 4% fee discount for referees and the 10% fee share for referrers — activate with **v1.1**, when fee accrual and payouts ship. Until then the referrals page shows your network and stats, and the claim button reads "Claims open in v1.1". Registering early just means your network is already in place when payouts switch on. Details in [Referrals](/guides/referrals).
+
+### Do I need an API key to trade?
+
+No. The web app signs transactions with your wallet and talks to the contracts directly — no account, no sign-up, no key. API keys exist only for **programmatic** access through the REST/WebSocket gateway (bots, dashboards, SDKs). If you want to build against the API, start with the [developer overview](/developers) and [authentication](/developers/authentication).
+
+## Testnet
+
+### What happens when the Stellar testnet resets?
+
+Stellar periodically resets its testnet, wiping all accounts, balances, and contracts network-wide. When that happens, everything on Noether is wiped too: positions, orders, vault deposits, and faucet balances. The team redeploys the full contract stack, and you start fresh — reactivate your account via the faucet page, re-add trustlines, and claim new test USDC. Since testnet funds have no value, nothing of worth is lost.
+
+### When is mainnet launching?
+
+Mainnet is **planned**, with no announced date. Planned mainnet changes include up to 25x leverage (versus 10x today), a hardened production oracle setup, partial liquidations with a grace period plus an insurance fund, and higher fee-tier volume thresholds. Until then, everything you see — including the production app at [noether.exchange](https://noether.exchange) — runs on the Stellar testnet with test funds.
+
+### Where do I report bugs?
+
+Open an issue on GitHub at [NoetherDEX/noether](https://github.com/NoetherDEX/noether/issues), or use the feedback button in the bottom corner of the app. For anything security-sensitive, contact the team privately first via [@Noetherdex on X](https://x.com/Noetherdex) rather than filing a public issue.

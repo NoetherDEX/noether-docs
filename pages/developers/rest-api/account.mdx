@@ -1,3 +1,155 @@
-# Placeholder
+import { Callout } from 'nextra/components'
 
-_Content in progress._
+# Account
+
+Reference for the account endpoints of the gateway: your key identity, your events, your open positions, your order history, and the public 14-day volume lookup. Base URL: `https://noetherapi-production.up.railway.app`.
+
+The four `/v1/account/me` endpoints require an API key. There is no `address` parameter on them — the account is always the wallet that owns the API key you authenticate with. Send the key as a single header:
+
+```text
+Authorization: Bearer <keyId>:<secret>
+```
+
+See [Authentication](/developers/authentication) for how to obtain a key. Requests without a valid key get `401` with a body such as `{"error":"missing_bearer"}` or `{"error":"invalid_credentials"}`.
+
+<Callout type="info">
+Despite its name, `GET /v1/account/volume` is **public** — it takes an `address` query parameter and needs no API key. It is the only endpoint on this page that works without one.
+</Callout>
+
+All money, price, and size fields are strings of 7-decimal fixed-point integers (`"100000000"` = 10 USDC). In event and position payloads, `direction` is an integer: `0` = long, `1` = short.
+
+## GET /v1/account/me
+
+Returns the identity behind the API key you called with.
+
+**Auth:** API key required. **Parameters:** none.
+
+```bash
+curl -s https://noetherapi-production.up.railway.app/v1/account/me \
+  -H "Authorization: Bearer nk_<keyId>:<secret>"
+```
+
+```json
+{"owner":"G...","tier":"standard","keyId":"nk_..."}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `owner` | string | Stellar address of the wallet that issued this key |
+| `tier` | string | Rate-limit tier of the key (issuance always grants `standard`) |
+| `keyId` | string | The key id used on this request (`nk_` + 24 hex chars) |
+
+## GET /v1/account/me/events
+
+Decoded contract events where the trader is the authenticated owner — position opens/closes/liquidations, order events, and other trader-scoped topics. Rows have the same shape as the public `/v1/events` feed, newest first.
+
+**Auth:** API key required.
+
+| Query param | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `topic` | string | no | — | Filter by event topic, e.g. `position_opened` |
+| `before_ts` | integer | no | — | Unix seconds; returns events strictly older than this (cursor pagination) |
+| `limit` | integer | no | 50 | 1–500 |
+
+```bash
+curl -s "https://noetherapi-production.up.railway.app/v1/account/me/events?topic=position_closed&limit=20" \
+  -H "Authorization: Bearer nk_<keyId>:<secret>"
+```
+
+The response is `{"events":[ ... ]}` where each row is:
+
+| Field | Type | Description |
+|---|---|---|
+| `eventId` | string | Unique event id, stable sort key |
+| `contractId` | string | Emitting contract address |
+| `topic` | string | Event topic, e.g. `position_opened`, `order_cancelled` |
+| `ledger` | integer | Ledger sequence |
+| `ledgerCloseTs` | integer | Ledger close time, unix seconds |
+| `txHash` | string | Transaction hash |
+| `payload` | object | Decoded event fields; keys vary by topic |
+| `insertedAt` | integer | Indexer write time, milliseconds epoch |
+
+To paginate, take the `ledgerCloseTs` of the last row and pass it as `before_ts` on the next request.
+
+## GET /v1/account/me/positions
+
+Your currently open positions, plus your recent position lifecycle events, in one call.
+
+**Auth:** API key required. **Parameters:** none.
+
+```bash
+curl -s https://noetherapi-production.up.railway.app/v1/account/me/positions \
+  -H "Authorization: Bearer nk_<keyId>:<secret>"
+```
+
+```json
+{
+  "positions": [
+    {
+      "positionId": 331,
+      "trader": "CCEQJKB3WVADOSCLCMFXL3VBZ4RKYEGFCG4SJVPERLFEWSIFMIWROLZA",
+      "asset": "BTC",
+      "direction": 0,
+      "size": "285300000000",
+      "entryPrice": "622093708225",
+      "openedAt": 1780818917,
+      "openedTxHash": "eb9260de713579311368a9eba7f3e10a10a1a8e225bec79312d8a1cace7b9b8c"
+    }
+  ],
+  "events": []
+}
+```
+
+- `positions` rows have the same shape as the public open-positions feed — see [Positions](/developers/rest-api/positions). `size` is USDC notional and `entryPrice` a price, both 7-decimal strings; `openedAt` is unix seconds.
+- `events` contains up to 200 of your position events (topics `position_opened`, `position_closed`, `position_liquidated`), in the event row shape above.
+
+## GET /v1/account/me/orders
+
+Your order lifecycle events: topics `order_placed`, `order_executed`, and `order_cancelled`, newest first, in the same event row shape as `/v1/account/me/events`.
+
+**Auth:** API key required.
+
+| Query param | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `before_ts` | integer | no | — | Unix seconds; strictly older than |
+| `limit` | integer | no | **500** | 1–500 |
+
+<Callout type="info">
+`limit` here defaults to **500**, not 50 like the sibling endpoints — one call typically returns your full order history.
+</Callout>
+
+```bash
+curl -s https://noetherapi-production.up.railway.app/v1/account/me/orders \
+  -H "Authorization: Bearer nk_<keyId>:<secret>"
+```
+
+Response: `{"events":[ ... ]}`.
+
+## GET /v1/account/volume
+
+Trailing 14-day traded notional for any address. **Public — no API key needed**, even though it lives under the `account` path.
+
+| Query param | Type | Required | Notes |
+|---|---|---|---|
+| `address` | string | **yes** | Stellar address, exactly 56 characters |
+
+```bash
+curl -s "https://noetherapi-production.up.railway.app/v1/account/volume?address=GDA4JVVUE6CTF7FEGOFMKA3YE4E5J7SAAK7RACZLNIMXYF24OLLR3KZO"
+```
+
+```json
+{"address":"GDA4JVVUE6CTF7FEGOFMKA3YE4E5J7SAAK7RACZLNIMXYF24OLLR3KZO","volume14d":"0"}
+```
+
+`volume14d` is a 7-decimal USDC notional string. It mirrors the market contract's rolling volume record used for fee tiers: position opens and matched closes each count at full size; liquidations count nothing. Use it to determine which maker/taker fee tier an address currently sits in — see [Trading mechanics](/protocol/trading-mechanics).
+
+## Data freshness
+
+Everything on this page except `/v1/account/me` is served from indexer projections, not live chain reads, so it can lag behind the chain. Check `GET /v1/health` and read `indexer.ledgerAgeSeconds` to see how far behind the read side is. Endpoints whose projection tables are empty return empty arrays (`{"events":[]}`) rather than errors.
+
+## Next steps
+
+- [Authentication](/developers/authentication) — obtain and use an API key
+- [Trading endpoints](/developers/rest-api/trading) — prepare, sign, and submit orders
+- [Positions](/developers/rest-api/positions) — the public open-positions feed
+- [API explorer](/developers/api-explorer) — try these calls interactively

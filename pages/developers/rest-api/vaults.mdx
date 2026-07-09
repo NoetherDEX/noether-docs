@@ -1,3 +1,209 @@
-# Placeholder
+import { Callout } from 'nextra/components'
 
-_Content in progress._
+# Vaults
+
+Reference for the Trader Vault endpoints: the marketplace list, single-vault detail, and per-vault history feeds (trades, deposits, withdraws, fee claims). All six endpoints are public — no API key required. For what Trader Vaults are and how to use them from the app, see [/guides/trader-vaults](/guides/trader-vaults).
+
+All six endpoints are served from indexer projections (not live chain reads), so data can lag the chain — check `indexer.ledgerAgeSeconds` on [`GET /v1/health`](/developers/rest-api/system) to see how fresh the read side is. Money fields are strings of 7-decimal fixed-point USDC integers (`10000000` = 1 USDC); `*Bps` fields are plain basis points.
+
+<Callout type="info">
+Two timestamp units appear in vault payloads. `createdAt` and `ts` are **unix seconds**; `updatedAt` is **milliseconds** since epoch. Handle both when parsing.
+</Callout>
+
+## GET /v1/vaults
+
+Lists all Trader Vaults, newest first, with computed aggregates. The aggregates (`depositorCount`, `openPositions`, `tradeCount`, `drawdownBps`, `apyBps`, `closedTradePnl`) are computed per vault and cached for 10 seconds.
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `leader` | string (56 chars) | no | Filter to vaults led by this Stellar address |
+| `limit` | integer, 1–200 | no | Rows to return. Default 50 |
+
+### Example
+
+```bash
+curl -s "https://noetherapi-production.up.railway.app/v1/vaults?limit=1"
+```
+
+```json
+{
+  "vaults": [
+    {
+      "id": 12,
+      "leader": "GA4N5KYW2OR6BB5COLDEA6BPQEQLGDCBLHBQXEA2EUST7CETA7FIUNHR",
+      "name": "staging-test",
+      "createdAt": 1780259257,
+      "totalUsdc": "182672426343",
+      "circulatingShares": "166156808982",
+      "hwmNav": "10000000",
+      "realizedPnl": "0",
+      "leaderShares": "166156808982",
+      "profitShareBps": 1000,
+      "paused": false,
+      "updatedAt": 1783348357206,
+      "depositorCount": 1,
+      "openPositions": 0,
+      "tradeCount": 2,
+      "drawdownBps": 0,
+      "apyBps": 617,
+      "closedTradePnl": "1211692361"
+    }
+  ]
+}
+```
+
+### Vault object fields
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | integer | Vault ID (used in the path of the other five endpoints) |
+| `leader` | string | Leader's Stellar address |
+| `name` | string | Vault name |
+| `createdAt` | integer | Creation time, **unix seconds** |
+| `totalUsdc` | string | Vault TVL in USDC (7-decimal integer) |
+| `circulatingShares` | string | Vault shares outstanding (7-decimal integer) |
+| `hwmNav` | string | High-water NAV per share, 7-decimal scaled (`"10000000"` = 1.0) |
+| `realizedPnl` | string | Leader profit-share payouts to date (USDC, 7-decimal) |
+| `leaderShares` | string | Shares held by the leader (7-decimal integer) |
+| `profitShareBps` | integer | Leader profit share in basis points (`1000` = 10%) |
+| `paused` | boolean | Whether the vault is paused |
+| `updatedAt` | integer | Last projection update, **milliseconds** since epoch |
+| `depositorCount` | integer | Distinct depositors |
+| `openPositions` | integer | Currently open leader positions |
+| `tradeCount` | integer | Lifetime leader trades |
+| `drawdownBps` | integer | Current drawdown from the high-water mark: `(hwm − nav) / hwm × 10000`, floored at 0 |
+| `apyBps` | integer | Annualized `closedTradePnl` over TVL, in basis points |
+| `closedTradePnl` | string | Lifetime PnL from closed leader trades (USDC, 7-decimal) |
+
+## GET /v1/vaults/`{id}`
+
+Returns a single vault by ID, in the same enriched shape as a list row.
+
+### Path parameters
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `id` | integer ≥ 0 | yes | Vault ID |
+
+### Example
+
+```bash
+curl -s "https://noetherapi-production.up.railway.app/v1/vaults/12"
+```
+
+Response 200 is one vault object (fields as above). Unknown IDs return 404:
+
+```json
+{"error":"vault_not_found","id":999}
+```
+
+## GET /v1/vaults/`{id}`/trades
+
+The vault leader's open/close trade history, newest first.
+
+### Parameters
+
+| Parameter | In | Type | Required | Description |
+|---|---|---|---|---|
+| `id` | path | integer ≥ 0 | yes | Vault ID |
+| `limit` | query | integer, 1–200 | no | Rows to return. Default 50 |
+| `before_ts` | query | integer ≥ 0 | no | Return rows strictly older than this unix-seconds timestamp (cursor pagination) |
+
+### Example
+
+```bash
+curl -s "https://noetherapi-production.up.railway.app/v1/vaults/12/trades?limit=1"
+```
+
+```json
+{
+  "trades": [
+    {
+      "id": 50,
+      "vaultId": 12,
+      "positionId": "317",
+      "action": "close",
+      "leader": "GA4N5KYW2OR6BB5COLDEA6BPQEQLGDCBLHBQXEA2EUST7CETA7FIUNHR",
+      "collateral": "0",
+      "ledger": 2849806,
+      "ts": 1780260063,
+      "txHash": "e49d…1784",
+      "pnl": "-32835774"
+    }
+  ]
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `action` | string | `open` or `close` |
+| `positionId` | string | Market-contract position ID the leader traded |
+| `collateral` | string | Collateral committed (USDC, 7-decimal) |
+| `pnl` | string or null | Realized PnL (USDC, 7-decimal). `null` on `open` rows and on older `close` rows |
+| `ts` | integer | Trade time, unix seconds |
+| `ledger`, `txHash` | integer, string | On-chain reference for the event |
+
+## GET /v1/vaults/`{id}`/deposits, /withdraws, /fee-claims
+
+Three history feeds with identical parameters, newest first:
+
+- `GET /v1/vaults/{id}/deposits` — depositor inflows. Response key `deposits`.
+- `GET /v1/vaults/{id}/withdraws` — depositor outflows. Response key `withdraws`.
+- `GET /v1/vaults/{id}/fee-claims` — leader profit-share claims. Response key `feeClaims`.
+
+### Parameters
+
+| Parameter | In | Type | Required | Description |
+|---|---|---|---|---|
+| `id` | path | integer ≥ 0 | yes | Vault ID |
+| `limit` | query | integer, 1–200 | no | Rows to return. Default 50 |
+| `before_ts` | query | integer ≥ 0 | no | Return rows strictly older than this unix-seconds timestamp |
+
+### Example
+
+```bash
+curl -s "https://noetherapi-production.up.railway.app/v1/vaults/12/deposits?limit=1"
+```
+
+```json
+{
+  "deposits": [
+    {
+      "id": 36,
+      "vaultId": 12,
+      "principal": "GA4N5KYW2OR6BB5COLDEA6BPQEQLGDCBLHBQXEA2EUST7CETA7FIUNHR",
+      "amount": "166156808982",
+      "ledger": 2849699,
+      "ts": 1780259527,
+      "txHash": "3361…06f4",
+      "shares": "166156808982"
+    }
+  ]
+}
+```
+
+All three feeds share this row shape:
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | integer | Row ID |
+| `vaultId` | integer | Vault ID |
+| `principal` | string | The depositor's address (deposits/withdraws) or the leader's address (fee-claims) |
+| `amount` | string | USDC amount (7-decimal integer). On withdraws this is the USDC paid out |
+| `shares` | string | Vault shares minted/burned (7-decimal integer). Present on deposits and withdraws only — absent on fee-claims |
+| `ts` | integer | Event time, unix seconds |
+| `ledger`, `txHash` | integer, string | On-chain reference for the event |
+
+## Notes
+
+- **Vaults trade as contract addresses.** A Trader Vault holds positions under its own `C…` contract address, so vault activity also appears in [`GET /v1/positions/open`](/developers/rest-api/positions) and the leaderboard with a contract address in the `trader` field.
+- **Rate limits.** Without an API key you share the public tier of 60 requests per minute per IP. See the [REST overview](/developers/rest-api) for tiers and headers.
+- **Pagination.** `before_ts` is a strict less-than cursor in unix seconds: take the `ts` of the oldest row you have and pass it as `before_ts` to fetch the next page. There are no page tokens or total counts.
+
+## Next steps
+
+- [Positions](/developers/rest-api/positions) — open positions, including vault-held ones
+- [Trading](/developers/rest-api/trading) — the prepare → sign → submit flow
+- [Trader Vaults guide](/guides/trader-vaults) — creating and depositing into vaults from the app

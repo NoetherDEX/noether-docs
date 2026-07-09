@@ -6,7 +6,7 @@ export default {
   '---': { type: 'separator' },
   app: {
     title: 'Launch App ↗',
-    href: 'https://testnet.noether.exchange/trade',
+    href: 'https://noether.exchange/trade',
     newWindow: true
   },
   swagger: {

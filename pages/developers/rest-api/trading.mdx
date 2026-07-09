@@ -1,3 +1,206 @@
-# Placeholder
+import { Callout, Steps } from 'nextra/components'
 
-_Content in progress._
+# Trading (orders & tx)
+
+This page covers the two endpoints that place and execute trades through the gateway: `POST /v1/orders/prepare` and `POST /v1/tx/submit`. Both require an API key — see [Authentication](/developers/authentication).
+
+Base URL: `https://noetherapi-production.up.railway.app` (Stellar testnet, test funds).
+
+## The non-custodial model
+
+The gateway never holds private keys. Every trade is a three-step flow:
+
+1. **Prepare** — `POST /v1/orders/prepare` builds an unsigned, simulated Soroban transaction for one trading operation and returns it as base64 XDR.
+2. **Sign** — you sign that XDR client-side with your own Stellar key (wallet or keypair). The gateway is never involved.
+3. **Submit** — `POST /v1/tx/submit` relays the signed XDR to the network and polls until it reaches a final status or times out.
+
+Two properties of the prepared transaction matter for your integration:
+
+- **The trader is always the API key's owner.** The gateway sets the transaction's source account to the Stellar address that issued your key. You cannot prepare a transaction for another address.
+- **It consumes your account's sequence number and expires after 300 seconds.** Sign and submit it before anything else uses that sequence, and within the 5-minute window — otherwise it becomes invalid and you must prepare again.
+
+<Callout type="info">
+Both endpoints sit on the geo-guarded surface: depending on gateway configuration they can return HTTP `451` with body `{"error":"region_restricted","message":"Trading is not available in your jurisdiction. See the Terms of Service (restricted persons)."}`. Read endpoints, authentication, and health are never geo-blocked.
+</Callout>
+
+## `POST /v1/orders/prepare`
+
+Builds an unsigned, simulated, prepared Soroban transaction for one trading operation on the market contract. Auth: bearer API key required.
+
+The request body is a union discriminated by the `op` field. All ten operations:
+
+| `op` | Required fields (besides `op`) | Constraints |
+|---|---|---|
+| `open_position` | `asset`, `collateral`, `leverage`, `direction` | `asset` must be a supported symbol; `collateral` is a digit string in 7-decimal USDC (`"100000000"` = 10 USDC); `leverage` integer 1–10; `direction` is `"Long"` or `"Short"` |
+| `open_position_cross` | `asset`, `collateral`, `leverage`, `direction` | Same constraints as `open_position`; opens under cross margin |
+| `close_position` | `positionId` | Integer or numeric string |
+| `close_position_cross` | `positionId` | Integer or numeric string |
+| `place_limit_order` | `asset`, `direction`, `collateral`, `leverage`, `triggerPrice`, `triggerCondition`, `slippageToleranceBps` | `triggerPrice` digit string, 7-decimal fixed point; `triggerCondition` is `"Above"` or `"Below"`; `slippageToleranceBps` integer 0–10000 |
+| `place_stop_limit_order` | Same as `place_limit_order` plus `limitPrice` | `limitPrice` digit string, 7-decimal fixed point |
+| `place_trailing_stop` | `positionId`, `trailingPercentBps`, `slippageToleranceBps` | `trailingPercentBps` integer 1–10000 |
+| `set_stop_loss` | `positionId`, `triggerPrice`, `slippageToleranceBps` | `triggerPrice` digit string, 7-decimal fixed point |
+| `set_take_profit` | `positionId`, `triggerPrice`, `slippageToleranceBps` | `triggerPrice` digit string, 7-decimal fixed point |
+| `cancel_order` | `orderId` | Integer or numeric string |
+
+Notes on field conventions:
+
+- All money and price fields are **strings of 7-decimal fixed-point integers** (`10_000_000` = 1.0). Ten USDC of collateral is `"100000000"`.
+- `direction` in request bodies is the string `"Long"` or `"Short"`. (Read endpoints and event payloads encode direction as an integer, `0` = long, `1` = short.)
+- Basis-point fields (`slippageToleranceBps`, `trailingPercentBps`) are plain integers out of 10,000.
+- The supported asset list is served live by [`GET /v1/markets`](/developers/rest-api/markets).
+
+### Request
+
+```bash
+curl -s -X POST https://noetherapi-production.up.railway.app/v1/orders/prepare \
+  -H "Authorization: Bearer nk_<keyId>:<secret>" \
+  -H "content-type: application/json" \
+  -d '{"op":"open_position","asset":"BTC","collateral":"100000000","leverage":2,"direction":"Long"}'
+```
+
+### Response `200`
+
+```json
+{
+  "op": "open_position",
+  "trader": "G<your address>",
+  "xdr": "AAAAAgAAA…base64 unsigned transaction XDR…",
+  "minResourceFee": "187123"
+}
+```
+
+- `xdr` — the unsigned transaction, base64-encoded. Source account is your address; it contains one invoke-host-function operation against the market contract, with the fee set to the Stellar base fee plus the simulated Soroban resource fee.
+- `minResourceFee` — the simulated resource fee in stroops, as a string. May be absent.
+- The transaction has already been **simulated** against the current chain state. If the simulation fails (insufficient collateral, contract-level rejection, stale price), prepare returns `400 simulation_failed` instead of an XDR — you find out before signing anything.
+
+### Prepare errors
+
+| HTTP | Body | Meaning |
+|---|---|---|
+| `400` | `{"error":"unsupported_asset","asset":"XYZ"}` | The asset is not in the supported list |
+| `400` | `{"error":"simulation_failed","message":"Simulation failed: …"}` | The Soroban simulation rejected the operation (insufficient collateral, contract error, etc.) |
+| `400` | `{"statusCode":400,"code":"FST_ERR_VALIDATION","error":"Bad Request","message":"…"}` | The body does not match any operation schema — check required fields and constraints in the table above |
+| `401` | `{"error":"missing_bearer"}` and friends | Missing or invalid API key — see [Authentication](/developers/authentication) |
+| `451` | `{"error":"region_restricted", …}` | Trading blocked for your region (configuration-dependent) |
+| `502` | `{"error":"rpc_error","message":"…"}` | The gateway could not reach the Soroban RPC |
+
+## Signing
+
+Sign the returned XDR with the key of the trader address, against the **testnet** network passphrase `Test SDF Network ; September 2015`. With the JavaScript Stellar SDK the shape is: parse the XDR into a transaction, sign with your keypair, serialize back to XDR. Ready-made signing code lives in the SDK pages:
+
+- [TypeScript SDK](/developers/sdk-ts)
+- [Python SDK](/developers/sdk-py)
+
+Browser wallets (Freighter, LOBSTR via WalletConnect) can sign the same XDR through their `signTransaction` API.
+
+## `POST /v1/tx/submit`
+
+Submits a signed transaction and polls the network until it reaches a final status or the poll window closes. Auth: bearer API key required.
+
+### Request body
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `signedXdr` | string | yes | The signed transaction, base64 XDR |
+| `pollTimeoutMs` | integer | no | 1000–60000, default 30000. How long the gateway polls before returning `PENDING`. Poll interval is fixed at 1 second |
+
+```bash
+curl -s -X POST https://noetherapi-production.up.railway.app/v1/tx/submit \
+  -H "Authorization: Bearer nk_<keyId>:<secret>" \
+  -H "content-type: application/json" \
+  -d '{"signedXdr":"AAAAAgAAA…signed…","pollTimeoutMs":30000}'
+```
+
+### Responses
+
+| HTTP | When | Body |
+|---|---|---|
+| `200` | Confirmed on chain | `{"hash":"…","status":"SUCCESS","ledger":2971055}` |
+| `200` | Not final within `pollTimeoutMs` | `{"hash":"…","status":"PENDING"}` |
+| `200` | Failed on chain | `{"hash":"…","status":"FAILED","contractError":{"code":22,"name":"InsufficientCollateral"},"resultXdr":"…"}` — `contractError` may be `null` |
+| `400` | Rejected at submission | `{"error":"submission_rejected","message":"Submission rejected by RPC","contractError":{…}}` — `contractError` may be `null` |
+| `503` | RPC transaction queue full | `{"error":"try_again_later","retryable":true,"hash":"…","message":"RPC transaction queue is full — resubmit the same signed XDR shortly"}` plus header `Retry-After: 2` |
+| `502` | Transport error | `{"error":"rpc_error","message":"…"}` |
+
+### `PENDING` and idempotent resubmission
+
+Submission is **idempotent**. If you resubmit the same signed XDR, the network reports it as a duplicate and the gateway simply polls the existing transaction by hash and returns its current result. So the polling loop for a `PENDING` response is:
+
+1. Get `{"status":"PENDING","hash":"…"}`.
+2. Resubmit the exact same `signedXdr` (optionally with a fresh `pollTimeoutMs`).
+3. Repeat until you get `SUCCESS` or `FAILED`.
+
+The same applies to a `503 try_again_later`: wait for the `Retry-After` interval (2 seconds) and resubmit the same XDR. Do **not** prepare a fresh transaction to retry a `PENDING` one — the original may still land, and you would risk executing the trade twice.
+
+### Contract errors
+
+When a transaction fails inside the market contract, the gateway decodes the Soroban diagnostic error into `contractError: {"code": <number>, "name": "<ErrorName>"}` — for example code `22` is `InsufficientCollateral`, code `30` is `PriceStale`, code `63` is `SlippageExceeded`. `contractError` is `null` when the failure is not a contract error (for example a resource-budget or auth failure at the Soroban layer). Unknown codes decode to `"UnknownContractError"`.
+
+The full code-to-name table is on the [Errors](/developers/errors) page.
+
+## End-to-end walkthrough
+
+Open a 2x long on BTC with 10 USDC collateral, using curl for the HTTP calls and the JavaScript Stellar SDK for the signature.
+
+<Steps>
+
+### Prepare the transaction
+
+```bash
+curl -s -X POST https://noetherapi-production.up.railway.app/v1/orders/prepare \
+  -H "Authorization: Bearer nk_<keyId>:<secret>" \
+  -H "content-type: application/json" \
+  -d '{"op":"open_position","asset":"BTC","collateral":"100000000","leverage":2,"direction":"Long"}'
+```
+
+Response:
+
+```json
+{"op":"open_position","trader":"G<your address>","xdr":"AAAAAgAAA…","minResourceFee":"187123"}
+```
+
+### Sign the XDR client-side
+
+```ts
+import { TransactionBuilder, Networks, Keypair } from '@stellar/stellar-sdk'
+
+const tx = TransactionBuilder.fromXDR(xdr, Networks.TESTNET)
+tx.sign(Keypair.fromSecret(process.env.STELLAR_SECRET!))
+const signedXdr = tx.toXDR()
+```
+
+The transaction expires 300 seconds after prepare — sign and submit promptly. For full client setups (including wallet-based signing), see the [TypeScript SDK](/developers/sdk-ts) and [Python SDK](/developers/sdk-py) pages.
+
+### Submit the signed XDR
+
+```bash
+curl -s -X POST https://noetherapi-production.up.railway.app/v1/tx/submit \
+  -H "Authorization: Bearer nk_<keyId>:<secret>" \
+  -H "content-type: application/json" \
+  -d '{"signedXdr":"'"$SIGNED_XDR"'","pollTimeoutMs":30000}'
+```
+
+On success:
+
+```json
+{"hash":"85895449a4…","status":"SUCCESS","ledger":2971055}
+```
+
+If you get `{"status":"PENDING", …}`, resubmit the same signed XDR to keep polling. If you get `{"status":"FAILED","contractError":{…}, …}`, look the code up on the [Errors](/developers/errors) page.
+
+### Confirm the result
+
+Read your position back with [`GET /v1/account/me/positions`](/developers/rest-api/positions), or stream fills live over the [WebSocket API](/developers/websocket).
+
+</Steps>
+
+<Callout type="warning">
+This is the Stellar testnet — collateral is test USDC from the faucet, not real money. Testnet resets periodically, and contract state does not survive a reset.
+</Callout>
+
+## Next steps
+
+- [Authentication](/developers/authentication) — get an API key (closed beta; issuance is allowlist-gated)
+- [Errors](/developers/errors) — the full contract error code table
+- [Positions](/developers/rest-api/positions) and [Account](/developers/rest-api/account) — read back your open positions and order events
+- [WebSocket](/developers/websocket) — live fills and prices without polling

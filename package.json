@@ -5,6 +5,7 @@
   "description": "Official documentation for Noether — decentralized perpetual futures exchange on Stellar",
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/generate-llms.mjs",
     "build": "next build",
     "start": "next start",
     "fetch:openapi": "node scripts/fetch-openapi.mjs"

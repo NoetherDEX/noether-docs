@@ -1,3 +1,140 @@
-# Placeholder
+import { Callout } from 'nextra/components'
 
-_Content in progress._
+# REST API overview
+
+Conventions used across the Noether REST reference: base URL, authentication legend, pagination, error shapes, and rate limits, followed by a directory of every endpoint. For a guided first request, start at [/developers](/developers); for key issuance, see [/developers/authentication](/developers/authentication).
+
+## Base URL and versioning
+
+All requests go to the gateway on Railway:
+
+```text
+https://noetherapi-production.up.railway.app
+```
+
+Every endpoint lives under the `/v1` prefix — there is no other version. The gateway runs against the Stellar **testnet**; all balances are test funds.
+
+```bash
+curl -s https://noetherapi-production.up.railway.app/v1/health
+```
+
+`GET /v1/health` returns `status`, `version`, `network` (`testnet`), the resolved contract addresses the gateway serves, and `indexer.ledgerAgeSeconds` — how far behind the indexer-backed data is. Check it first when historical data looks stale.
+
+The gateway also serves Swagger UI at `/docs` and the raw OpenAPI 3.0.3 spec at `/docs/json`. A friendlier interactive console is at [/developers/api-explorer](/developers/api-explorer).
+
+## Authentication legend
+
+Each endpoint in the reference is marked with one of two badges:
+
+| Badge | Meaning |
+|---|---|
+| **Public** | No credentials. Rate-limited per IP. |
+| **API key** | Requires `Authorization: Bearer <keyId>:<secret>`. Rate-limited per key. |
+
+API keys are issued through a wallet-signed challenge and are currently gated to a closed-beta allowlist — the full flow, header format, and optional `X-Timestamp` replay protection are on [/developers/authentication](/developers/authentication). All market data, prices, events, vaults lists, and referral lookups are public; account data, order preparation, transaction submission, and key management require a key.
+
+## Common conventions
+
+- **Precision** — all money, price, and size fields are strings of 7-decimal fixed-point integers: `"10000000"` is 1.0, and 10 USDC is `"100000000"`. Price payloads also include a pre-converted `priceFloat`. Fields ending in `Bps` are plain basis points. Candle OHLC values are plain floats.
+- **Timestamps** — event and trade fields (`ts`, `timestamp`, `ledgerCloseTs`, `openedAt`, candle `time`) are unix seconds; bookkeeping fields (`insertedAt`, key `createdAt` and `lastUsedAt`, challenge `expiresAt`) are millisecond epochs.
+- **Direction** — response payloads use the integer `0` for long and `1` for short; request bodies use the strings `"Long"` and `"Short"`.
+- **Request ID** — every response carries an `x-request-id` header; you may supply your own via the same request header.
+- **Empty over error** — indexer-backed endpoints return empty arrays (for example `{"events":[]}`) rather than 500 when no data exists yet.
+
+## Pagination
+
+List endpoints paginate with a cursor, not page tokens:
+
+- `before_ts` — unix seconds; returns rows strictly older than this value.
+- `limit` — page size, capped per endpoint.
+
+Results are newest-first, except `/v1/candles`, which is oldest-first. There are no total counts. To walk history, take the oldest `ts` from a page and pass it as the next request's `before_ts`.
+
+| Endpoint family | `limit` default | `limit` max |
+|---|---|---|
+| `/v1/events`, `/v1/account/me/events` | 50 | 500 |
+| `/v1/account/me/orders` | **500** | 500 |
+| `/v1/trades` | 50 | 200 |
+| `/v1/leaderboard` | 50 | 200 |
+| `/v1/candles` | 500 | 1000 |
+| `/v1/vaults` and all vault sub-lists | 50 | 200 |
+| `/v1/referral/me/trades`, `/v1/referral/me/claims` | 50 | 200 |
+| `/v1/positions/open` | no `limit` param — hard cap 200 rows, 500 when filtered by `trader` | — |
+
+<Callout type="info">
+One outlier: `GET /v1/account/me/orders` defaults to `limit=500` (its maximum), while sibling endpoints default to 50. Pass an explicit `limit` if you want smaller pages.
+</Callout>
+
+## Error responses
+
+Errors are JSON. The shapes below appear throughout the reference.
+
+**400 — validation.** Fastify schema validation rejects malformed queries and bodies:
+
+```json
+{"statusCode":400,"code":"FST_ERR_VALIDATION","error":"Bad Request","message":"querystring/interval must be equal to one of the allowed values"}
+```
+
+Trading endpoints add their own 400 bodies, such as `{"error":"unsupported_asset","asset":"XYZ"}` and `{"error":"simulation_failed","message":"…"}` — see the [Trading](/developers/rest-api/trading) page.
+
+**401 — unauthorized.** Returned by API-key endpoints:
+
+| Condition | Body |
+|---|---|
+| Missing or invalid `Authorization` header | `{"error":"missing_bearer"}` |
+| Bearer token without the `:` separator | `{"error":"malformed_bearer","hint":"use Bearer <keyId>:<secret>"}` |
+| `X-Timestamp` outside ±30 s of server time | `{"error":"stale_timestamp"}` |
+| Unknown, revoked, or wrong-secret key | `{"error":"invalid_credentials"}` |
+
+**403 — closed beta.** Key issuance (`POST /v1/keys`) for a wallet not on the beta allowlist:
+
+```json
+{"error":"not_in_beta","message":"API key issuance is currently restricted to early-access wallets. Contact the team to request access."}
+```
+
+**404 — not found.** Unknown routes return the Fastify default (`{"message":"Route GET:/v1/nope not found","error":"Not Found","statusCode":404}`). Resource lookups return specific bodies: `{"error":"Unknown asset","asset":"FOO"}`, `{"error":"vault_not_found","id":999}`, `{"error":"unknown_code","code":"NOSUCH"}`, `{"error":"key_not_found"}`.
+
+**429 — rate limited.** Includes a `Retry-After` header (seconds until the window resets):
+
+```json
+{"error":"rate_limited","retry_after_sec":37}
+```
+
+**451 — region restricted.** The trading surface (paths under `/v1/orders` and `/v1/tx`) can be geo-restricted by server configuration:
+
+```json
+{"error":"region_restricted","message":"Trading is not available in your jurisdiction. See the Terms of Service (restricted persons)."}
+```
+
+Read, auth, and health endpoints are never geo-blocked. Treat 451 as a possible response on trading endpoints; whether it fires depends on deployment configuration.
+
+**5xx — upstream.** `502 {"error":"rpc_error","message":"…"}` when the Soroban RPC call fails, and `503 {"error":"try_again_later","retryable":true,…}` with a `Retry-After: 2` header when the RPC transaction queue is full — resubmit the same signed XDR shortly.
+
+## Rate limits
+
+| Tier | Limit | Counted per |
+|---|---|---|
+| Public (no key) | 60 requests/min | client IP |
+| `standard` (issued API keys) | 600 requests/min | key ID |
+| `market_maker` | 6,000 requests/min | key ID |
+
+Windows are fixed 60-second buckets aligned to the wall-clock minute. Responses carry `X-RateLimit-Tier` and `X-RateLimit-Remaining` headers; a 429 adds `Retry-After`. `GET /v1/health` and `/docs` are exempt. Sending a valid API key on any endpoint — including public ones — moves you to your key's higher per-key bucket. All issued keys are `standard`; the `market_maker` tier has no self-serve upgrade path today.
+
+## Reference directory
+
+| Page | Endpoints |
+|---|---|
+| [Markets and market data](/developers/rest-api/markets) | `GET /v1/markets` · `GET /v1/markets/stats` · `GET /v1/markets/{asset}` · `GET /v1/trades` · `GET /v1/candles` · `GET /v1/leaderboard` |
+| [Oracle and prices](/developers/rest-api/oracle) | `GET /v1/oracle/prices` · `GET /v1/markets/{asset}/price` |
+| [Account](/developers/rest-api/account) | `GET /v1/account/me` · `GET /v1/account/me/events` · `GET /v1/account/me/positions` · `GET /v1/account/me/orders` · `GET /v1/account/volume` |
+| [Positions](/developers/rest-api/positions) | `GET /v1/positions/open` |
+| [Trading](/developers/rest-api/trading) | `POST /v1/orders/prepare` · `POST /v1/tx/submit` |
+| [Vaults](/developers/rest-api/vaults) | `GET /v1/vaults` · `GET /v1/vaults/{id}` · `GET /v1/vaults/{id}/trades` · `GET /v1/vaults/{id}/deposits` · `GET /v1/vaults/{id}/withdraws` · `GET /v1/vaults/{id}/fee-claims` |
+| [Referral](/developers/rest-api/referral) | `GET /v1/referral/lookup` · `GET /v1/referral/info` · `GET /v1/referral/me` · `GET /v1/referral/me/trades` · `GET /v1/referral/me/claims` |
+| [Keys, events, and health](/developers/rest-api/system) | `GET /v1/keys/beta-status` · `POST /v1/keys/challenge` · `POST /v1/keys` · `GET /v1/keys` · `DELETE /v1/keys/{keyId}` · `GET /v1/events` · `GET /v1/health` |
+
+## Next steps
+
+- [Get an API key](/developers/authentication) — wallet-signed challenge flow and the bearer header format.
+- [Try requests live](/developers/api-explorer) — interactive console against the production gateway.
+- [Error reference](/developers/errors) — the full contract error taxonomy returned by `POST /v1/tx/submit`.

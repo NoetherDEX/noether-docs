@@ -1,3 +1,107 @@
-# Placeholder
+import { Callout, Steps } from 'nextra/components'
 
-_Content in progress._
+# Referrals
+
+Noether has an on-chain referral program. This page shows you how to create your referral code, share it, and how referees bind to it — plus what the program pays once fee sharing goes live.
+
+<Callout type="info">
+**What works today vs. what's coming.** Creating a code, sharing your link, and binding referees are live now — all of it settles on-chain. The economics (a 4% fee discount for referees and a 10% fee share for referrers) activate in **v1.1**. Until then, nothing accrues and the Claim button is disabled. Registering early still matters: bindings are permanent, so the network you build now starts earning the moment v1.1 ships.
+</Callout>
+
+## How the program works
+
+| Role | What you do | What you get (from v1.1) |
+|---|---|---|
+| Referrer | Register a code, share your link | 10% of every trading fee your referees pay |
+| Referee | Open a share link and bind the code | 4% off the fee on every trade |
+
+Three things are true today, before any economics:
+
+- **Codes are on-chain.** Registering a code is a Stellar transaction owned by your wallet.
+- **Bindings are on-chain and permanent.** Once a wallet binds to a code, it cannot rebind to another one — ever. You also can't bind to your own code.
+- **One wallet, one code.** Each wallet can register exactly one referral code, and it can't be changed later.
+
+## Create your code
+
+You only need a connected wallet — no sign-in or API key.
+
+<Steps>
+
+### Open the Referrals page
+
+Go to **Referrals** in the top navigation on [noether.exchange](https://noether.exchange), and connect your wallet if you haven't (see [Getting started](/guides/getting-started)).
+
+### Pick a code
+
+In the **"Register your referral code"** card, enter a code of **3–16 characters** using letters, numbers, underscores, and hyphens (`A–Z a–z 0–9 _ -`). Codes are **case-sensitive**. The page checks availability against the chain as you finish typing — you'll see "available" or "already taken" before you submit.
+
+### Sign the transaction
+
+Click register and approve **one wallet signature**. Your code is now recorded on-chain and permanent. The dashboard may show zeroed stats for around 30 seconds while the indexer catches up.
+
+</Steps>
+
+<Callout type="warning">
+Code registration may be **invite-only** during the closed beta. If your wallet isn't cleared to create codes yet, the card reads "Referral codes are invite-only right now" — DM [@Noetherdex on X](https://x.com/Noetherdex) or ask in Discord. Binding to someone else's code as a referee always works regardless.
+</Callout>
+
+## Share your link
+
+The Referrals page gives you two copy buttons: one for the bare code, one for the full link. The link format is:
+
+```text
+https://noether.exchange/?ref=YOURCODE
+```
+
+Any Noether page URL with `?ref=YOURCODE` appended captures the code, but the generated link points at the home page.
+
+## What your referee sees
+
+When someone opens your link:
+
+1. The code is saved in their browser and a floating **"Referral · Invitation"** card appears, showing the code, your (the referrer's) address, how many others have joined, and the coming benefit: **4% off every trade — from v1.1**.
+2. They click **"Bind referral code"** (or **"Connect wallet to bind"** first) and approve **one wallet signature**. That's the on-chain binding.
+3. After binding, the Referrals page confirms: "You were referred by code X" with the date.
+
+If they **dismiss the banner**, the code isn't lost — it's parked in their browser, and the Referrals page shows a **"Have a referral code?"** card pre-filled with it so they can bind later. Opening a fresh referral link brings the banner back.
+
+<Callout type="warning">
+Binding is **permanent**. A wallet that has already bound to a code cannot switch to a different referrer, so referees should bind to the code they actually want to support.
+</Callout>
+
+## Earnings and the fee discount (from v1.1)
+
+Once fee accrual ships in v1.1:
+
+- **Referees** get **4% off the trading fee** on every trade. For example, at the base taker rate of 0.050%, that's a discount of 4% *of the fee* — not 4% of the trade.
+- **Referrers** earn **10% of every fee** their referees pay, accruing to a claimable on-chain balance.
+
+Both rates apply to trading fees (see [fees on the trading page](/guides/trading)). Settlement is on-chain.
+
+<Callout type="info">
+Everything runs on Stellar **testnet** today, so fees — and therefore future referral earnings during this phase — are in test USDC, not real funds.
+</Callout>
+
+## Claiming (v1.1)
+
+The Referrals page already shows a **"Claim earnings"** card with your claimable balance, but the button is disabled and labeled **"Claims open in v1.1"**. Fee accrual and payouts go live together in v1.1; there is nothing to claim before then.
+
+## Tracking your referrals
+
+- **No sign-in needed** for the basics: your code, share link, referee count, and claimable balance are visible with just a connected wallet.
+- The collapsible **"Advanced — full dashboard"** section (trade-by-trade earnings and claims tables) requires a one-time wallet sign-in (you sign a challenge, no funds move). During the closed beta this dashboard is limited to allowlisted wallets — if yours isn't on the list yet, you'll see a "Dashboard analytics — closed beta" notice, and everything else on the page keeps working.
+
+## Quick reference
+
+| Item | Value |
+|---|---|
+| Code length | 3–16 characters |
+| Allowed characters | Letters, digits, `_`, `-` (case-sensitive) |
+| Codes per wallet | 1, permanent |
+| Binding | 1 wallet signature, permanent, no self-referral |
+| Referee discount | 4% of each trading fee — **from v1.1** |
+| Referrer share | 10% of each referee fee — **from v1.1** |
+| Claiming | Disabled until v1.1 |
+| Share link | `https://noether.exchange/?ref=YOURCODE` |
+
+Questions about edge cases? Check the [FAQ](/guides/faq). Building on the program instead? See the [referral REST endpoints](/developers/rest-api/referral).

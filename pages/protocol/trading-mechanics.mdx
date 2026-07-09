@@ -1,3 +1,273 @@
-# Placeholder
+import { Callout } from 'nextra/components'
 
-_Content in progress._
+# Trading mechanics
+
+This page defines the exact math the market contract uses: precision conventions, PnL, margin, funding, liquidation, fees, open-interest caps, and the order-execution details integrators need. All values below are the parameters deployed on the current Stellar testnet stack — see [Networks](/protocol/networks) for deployment details and [Contracts](/protocol/contracts) for addresses.
+
+## Precision
+
+All on-chain amounts, prices, and NAV values are 7-decimal fixed-point integers. Fee rates use a finer unit, the deci-basis-point, so sub-basis-point tiers stay exact in integer math.
+
+| Constant | Value | Meaning |
+|---|---|---|
+| `PRECISION` | `10_000_000` | 7-decimal fixed point. `10_000_000` = 1.0 (one USDC, or a price of $1.00) |
+| `BASIS_POINTS` | `10_000` | 1 bp = 0.01%; `10_000` bps = 100% |
+| `FEE_PRECISION` | `100_000` | Deci-bps: 1 unit = 0.1 bp = 0.001% |
+
+Conversion examples:
+
+```text
+$10 USDC          = 100_000_000            (10 × PRECISION)
+BTC at $65,000    = 650_000_000_000_000    (65_000 × PRECISION)
+1%                = 100 bps
+50 deci-bps       = 5 bps = 0.05%
+fee = size × fee_units / FEE_PRECISION
+    → $10,000 position at 50 deci-bps = 10_000 × PRECISION × 50 / 100_000 = $5.00
+```
+
+Percentage-style parameters (maintenance margin, liquidation fee, caps) use plain basis points against `BASIS_POINTS`. Only the maker/taker fee tiers use deci-bps.
+
+## Position PnL
+
+PnL is proportional to how far the mark price has moved from your entry, scaled by position size (size = collateral × leverage):
+
+```text
+Long:   pnl = size × (current_price − entry_price) / entry_price
+Short:  pnl = size × (entry_price − current_price) / entry_price
+```
+
+All terms are 7-decimal fixed point; the contract uses checked multiplication throughout. A $1,000 long (size) with entry $100 and mark $105 has PnL = 1,000 × 5 / 100 = **+$50**. The same move against a short is **−$50**.
+
+The mark price comes from the Noeracle price chain — see [Oracle](/protocol/oracle) for how prices are attested, the 60-second staleness rule, and the 1% deviation band.
+
+## Margin
+
+Every position is either isolated or cross. The mode is fixed at open (`margin_mode`: `0` = isolated, `1` = cross) and cannot be changed afterward.
+
+### Isolated margin
+
+Each position carries its own collateral. A loss on one position can never touch another: loss transfers to the Liquidity Vault are capped at that position's own collateral.
+
+The liquidation price is precomputed at open:
+
+```text
+leverage_factor = PRECISION / leverage
+margin_factor   = maintenance_margin_bps × PRECISION / 10_000    // 100 bps = 1%
+adjustment      = leverage_factor − margin_factor
+
+Long:   liq_price = entry − entry × adjustment / PRECISION
+Short:  liq_price = entry + entry × adjustment / PRECISION
+```
+
+At 10x leverage with the 1% maintenance margin, a long liquidates at **entry × 0.91** and a short at **entry × 1.09**.
+
+There is no partial close and no add-collateral function on the current contract — a position is closed in full, and adjusting exposure means closing and re-opening.
+
+### Cross margin
+
+Cross positions share one collateral pool per trader. Deposit into it with `deposit_cross_margin`, or let `open_position_cross` auto-deposit the shortfall from your wallet in the same transaction. The account-level quantities:
+
+```text
+equity             = pool_balance + Σ collateral + Σ unrealized_pnl − Σ pending_funding
+maintenance_margin = Σ size × 100 / 10_000          // 1% of total position size
+used_margin        = Σ size / leverage              // initial margin
+free_margin        = equity − used_margin
+margin_ratio_bps   = equity / used_margin × 10_000
+```
+
+When each check runs:
+
+| Check | When | Rule |
+|---|---|---|
+| Free-margin gate | Opening a new cross position while others are open | Rejected if `equity` is below `maintenance_margin + new_collateral` |
+| Withdrawal gate | `withdraw_cross_margin` | Rejected if `equity − amount` would not exceed `maintenance_margin` |
+| Liquidation | Keeper calls `liquidate_cross_account` | Account liquidatable when `equity` is below `maintenance_margin` (with at least one open cross position) |
+
+Cross positions store a liquidation price of `0` — liquidation is decided at the account level, not per position. Closing a cross position returns collateral and PnL **to the cross pool**, not your wallet; withdraw separately.
+
+<Callout type="info">
+Stop-loss, take-profit, and trailing-stop orders can only be attached to isolated positions. Attaching one to a cross position is rejected with contract error `#80 CrossMarginOrderNotSupported`.
+</Callout>
+
+## Funding
+
+Funding balances long and short open interest. The base rate is **0.01% per hour** at full one-sided imbalance, scaled by how lopsided the book is:
+
+```text
+longs > shorts:  rate =  base × (L − S) × PRECISION / (L × 10_000)
+shorts > longs:  rate = −base × (S − L) × PRECISION / (S × 10_000)
+balanced:        rate = 0
+```
+
+Sign convention: **positive rate means longs pay shorts; negative means shorts pay longs.** The rate is a fraction of position size per hour, scaled by `PRECISION` — full imbalance produces a raw rate of `1000` (= 0.01%/hour); a 50% imbalance produces `500` (= 0.005%/hour).
+
+### Cumulative rate and lazy settlement
+
+Anyone can call `apply_funding()` once per hour (calling early fails with `#55 FundingIntervalNotElapsed`); in practice the keeper bot does. Each call stores the current rate and accumulates it into a global counter:
+
+```text
+CumulativeFundingRate += rate × hours_elapsed
+```
+
+Funding is **not** streamed to positions each hour. Each position records the cumulative rate at open (`entry_cumulative_funding`), and the whole accrued amount settles once, at close or liquidation:
+
+```text
+funding = size × (cumulative_now − entry_cumulative) / PRECISION
+
+Long:   pays  +funding    // pays when cumulative increased, receives when it decreased
+Short:  pays  −funding    // mirror image
+```
+
+Worked example: a $1,500 position held while the cumulative rate rises by `500` over one hour owes 1,500 × 500 / 10,000,000 = **$0.075** — the long pays it, a short of the same size receives it.
+
+Funding you owe transfers to the Liquidity Vault along with any loss (capped at the position's collateral on isolated closes); funding owed **to** you is paid on top of your collateral and PnL. Pending funding is included in every margin, equity, and liquidation check, so an unsettled funding debt can itself push a position into liquidation range.
+
+## Liquidation
+
+### Trigger conditions
+
+| Mode | Liquidatable when |
+|---|---|
+| Isolated | Mark price crosses the precomputed liquidation price (long: at or below; short: at or above), **or** `collateral + pnl − funding` falls below 1% of position size |
+| Cross | Account `equity` falls below account `maintenance_margin` |
+
+Liquidations use the lenient oracle path — they are never blocked by price staleness, the deviation band, or a market pause ("halt opens, allow closes").
+
+### Isolated liquidation settlement
+
+The liquidation fee is **5%** (`liquidation_fee_bps = 500`) of remaining equity:
+
+```text
+remaining     = collateral + pnl − funding
+keeper_reward = remaining × 500 / 10_000               // 5%, if remaining > 0
+cap:            reward never exceeds collateral / 10   // 10% of position collateral
+```
+
+The keeper receives the reward, the rest of the collateral goes to the Liquidity Vault, and the trader receives nothing. Any attached stop-loss, take-profit, or trailing-stop orders are cancelled with reason `pos_closed`.
+
+### Cross-account liquidation
+
+`liquidate_cross_account` closes **all** of the trader's cross positions in one transaction:
+
+- Per-position losses and funding accumulate and transfer to the vault, capped at the market contract's total USDC balance — leveraged losses beyond the trader's deposits become bad debt absorbed by the vault.
+- Keeper reward = 5% of account equity, capped at 10% of the pool balance before liquidation (and by the market's remaining USDC).
+- Remaining trader equity after the reward goes to the vault; the cross pool balance is zeroed.
+- One `cross_liq` event is emitted for the whole account — there are no per-position events.
+- If an asset's oracle read fails, that position is skipped rather than wrongfully liquidated; the health pre-check treats an unreadable price as maximally favorable to the trader.
+
+<Callout type="warning">
+Liquidation forfeits your entire remaining collateral (isolated) or account equity (cross). At 10x leverage a roughly 9% adverse move reaches the liquidation price — size positions accordingly, even with testnet funds.
+</Callout>
+
+## Fees
+
+### Maker/taker tiers
+
+Trading fees are tiered by your 14-day rolling volume, tracked on-chain per trader. Rates are in deci-bps (`fee = size × rate / 100_000`):
+
+| Tier | 14-day volume | Maker (deci-bps) | Maker % | Taker (deci-bps) | Taker % |
+|---|---|---|---|---|---|
+| 0 | $0 | 20 | 0.020% | 50 | 0.050% |
+| 1 | ≥ $20,000 | 15 | 0.015% | 40 | 0.040% |
+| 2 | ≥ $50,000 | 10 | 0.010% | 30 | 0.030% |
+| 3 | ≥ $100,000 | 5 | 0.005% | 20 | 0.020% |
+
+You get the highest tier whose threshold your rolling volume meets. Volume is a 14-slot circular buffer of daily totals; days older than 14 days drop off. These thresholds are the current testnet values, lowered for testing.
+
+Which rate applies:
+
+- **Market opens** (`open_position`, `open_position_cross`) pay the **taker** fee, deducted from collateral at open. If the fee would consume all collateral the open fails.
+- **Keeper-executed limit and stop-limit entries** pay the **maker** fee (plus the keeper order fee below), deducted from the order's locked collateral.
+- **Closes pay no trading fee.** The close still counts toward your 14-day volume, so closing helps you reach the next tier.
+
+Worked example at tier 0: a $10,000 market open costs 10,000 × 50 / 100,000 = **$5.00** taker fee; the same size filled as a resting limit order costs **$2.00** maker fee ($1.50 at tier 1).
+
+### Keeper order fee
+
+When a keeper executes a triggered order, it earns a fixed-plus-proportional fee, separate from the trading fee:
+
+```text
+keeper_fee = 0.50 USDC + position_size × 5 / 10_000    // $0.50 + 0.05% of size
+```
+
+It is deducted from the order's locked collateral (limit entries) or from position collateral at close (stop-loss / take-profit / trailing stops), capped at what is available.
+
+### Fee routing
+
+Today, **100% of trading fees go to the Liquidity Vault**, where they raise AUM and the NOE token price — see [Liquidity Vault](/guides/vault). The contract has a protocol fee split parameter (default 20%, settable up to 50% by the admin), but it only takes effect once a treasury address is configured on-chain. No treasury is set on the current deployment, so the split is **dormant** and LPs receive the full fee flow.
+
+<Callout type="info">
+Referred traders currently receive their 4% fee discount off-chain, applied by the gateway's fee calculation rather than by the market contract. On-chain fee events therefore show the undiscounted amount for referred wallets. An on-chain referral hook is planned. See [Referrals](/guides/referrals).
+</Callout>
+
+## Open-interest caps
+
+The Liquidity Vault is the counterparty to every trade, so it enforces caps at open time. Each open reserves the **full position size** (the maximum possible payout) against vault AUM, and the open is rejected if any of three limits would be breached:
+
+| Cap | Default | Rejection |
+|---|---|---|
+| Per-asset, per-side open interest | 25% of vault AUM per asset per side | `#82 OpenInterestCapExceeded` |
+| Aggregate reserved payout | 70% of vault AUM across all open positions | `#82 OpenInterestCapExceeded` |
+| Physical liquidity | Reservations cannot exceed the vault's actual USDC balance | `#40 InsufficientLiquidity` |
+
+When a cap is hit, the open transaction fails with the contract error above — nothing is partially filled. Reservations are released as positions close or liquidate, so capacity frees up as open interest unwinds. Both cap percentages are admin-tunable. Closes and liquidations are never blocked by the caps.
+
+## Order execution details (for integrators)
+
+Full order-type semantics live in the [Trading guide](/guides/trading) and the [trading API reference](/developers/rest-api/trading). This section covers the contract-level details that matter when you build against the market directly or via the SDKs.
+
+### `time_in_force` bit encoding
+
+`time_in_force` is a `u32` bitfield on `place_limit_order` and `place_stop_limit_order`:
+
+| Bits | Meaning | Values |
+|---|---|---|
+| 0–7 | TIF mode | `0` = GTC, `1` = IOC, `2` = Post-Only; any mode above 2 fails with `#5 InvalidParameter` |
+| 8 | Reduce-only flag | `0x100` |
+
+Combine them: `0x100` is a reduce-only GTC order, `0x101` reduce-only IOC. For stop-limit orders, IOC and Post-Only apply to the **limit phase**, not the stop trigger.
+
+A reduce-only order never opens exposure. At execution the contract finds the trader's largest opposing isolated position in the same asset whose size fits within the order's intended size, refunds the order's locked collateral, and closes that position through the standard close settlement (the keeper still earns its fee). If no suitable position exists, the order is cancelled with reason `reduce_only_no_position` and the keeper earns nothing. Reduce-only executions use the lenient oracle path, since they reduce risk.
+
+### Slippage: orders cancel, they do not revert
+
+At execution the contract computes actual slippage against the order's reference price (`limit_price` for take-limit and active stop-limits, otherwise `trigger_price`):
+
+```text
+actual_slippage_bps = |current_price − reference_price| × 10_000 / reference_price
+```
+
+If it exceeds the order's `slippage_tolerance_bps`, the order is **cancelled, not reverted**: locked collateral is refunded, position links are cleaned up, the status becomes `CancelledSlippage`, an `order_cancelled` event fires with reason `slippage`, and `execute_order` returns success with a zero reward so the state change commits. Do not poll for a `SlippageExceeded` contract error — it is defined but never raised.
+
+The same commit-instead-of-revert pattern applies to IOC placement: an IOC limit order whose trigger condition is not already met is stored as `Cancelled`, collateral is refunded, and `order_cancelled` fires with reason `ioc_not_filled` — the placement call still succeeds and returns the cancelled order.
+
+### Which placements emit events
+
+Only some placement functions emit `order_placed (order_id, trader, trigger_price)`:
+
+| Function | Emits `order_placed` |
+|---|---|
+| `place_limit_order` | Yes |
+| `set_stop_loss` | Yes |
+| `set_take_profit` | Yes |
+| `place_stop_limit_order` | **No** |
+| `place_trailing_stop` | **No** |
+
+If you index order flow from events alone, you will miss stop-limit and trailing-stop placements — read the returned `Order` struct from the placement call, or poll `get_order` / `get_all_order_ids`. Executions (`order_executed`) and cancellations (`order_cancelled`, with the reason symbols `user`, `slippage`, `ioc_not_filled`, `pos_closed`, `reduce_only_no_position`) are emitted uniformly for all order types.
+
+### Order lifecycle notes
+
+- Order status values: `Pending = 0`, `Executed = 1`, `Cancelled = 2`, `CancelledSlippage = 3` (`Expired = 4` is declared but never set).
+- Orders are status-updated, never deleted; positions **are** deleted from storage on close or liquidation.
+- Position and order IDs start at 1.
+- One stop-loss, one take-profit, and one trailing stop per position; a duplicate attach fails with `#67 OrderAlreadyExists`.
+- `cancel_order` is owner-only, works only on `Pending` orders, refunds locked collateral for limit and stop-limit entries, and is **not** blocked by a market pause.
+- A market pause blocks opens, closes, cross deposits/withdrawals, and order placement — but `liquidate`, `liquidate_cross_account`, `execute_order`, `cancel_order`, and `apply_funding` keep working.
+
+Contract error numbers referenced on this page are listed in full in the [error reference](/developers/errors).
+
+## Next steps
+
+- [Oracle](/protocol/oracle) — where the mark price comes from, staleness and deviation rules
+- [Contracts](/protocol/contracts) — deployed addresses and the full function surface
+- [Trading guide](/guides/trading) — the same mechanics from the trader's point of view

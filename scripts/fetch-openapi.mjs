@@ -13,6 +13,13 @@ if (!res.ok) {
 }
 
 const spec = await res.json()
+// The gateway serves a localhost `servers` entry; point it at the public base URL.
+spec.servers = [
+  {
+    url: new URL(SPEC_URL).origin,
+    description: 'Production gateway (Stellar testnet)'
+  }
+]
 await writeFile(
   new URL('../public/openapi.json', import.meta.url),
   JSON.stringify(spec, null, 2) + '\n'

@@ -1,3 +1,245 @@
-# Placeholder
+import { Callout } from 'nextra/components'
 
-_Content in progress._
+# Markets & market data
+
+Public market-data endpoints of the Noether gateway: the market list, per-asset detail, open interest and volume stats, recent trades, OHLC candles, and the trader leaderboard. Every endpoint on this page is public — no API key required.
+
+Base URL:
+
+```text
+https://noetherapi-production.up.railway.app
+```
+
+All paths are under `/v1`. Unauthenticated requests share the public rate limit of 60 requests per minute per IP; sending a valid API key raises that to your key's tier (see [Authentication](/developers/authentication)).
+
+<Callout type="info">
+Prices and money amounts are strings of 7-decimal fixed-point integers: `"632824877778"` is $63,282.4877778 and `"100000000"` is 10 USDC. Where a `priceFloat` field exists it is the same value pre-converted to a float. Timestamps in these payloads are unix seconds. The deployment runs on Stellar testnet with test funds.
+</Callout>
+
+## `GET /v1/markets`
+
+Lists all supported markets with their current oracle price. This is a live chain read through the Noeracle shim contract, cached for 3 seconds per asset.
+
+**Auth:** public. **Params:** none.
+
+```bash
+curl -s https://noetherapi-production.up.railway.app/v1/markets
+```
+
+```json
+{
+  "markets": [
+    {
+      "asset": { "symbol": "BTC", "name": "Bitcoin", "decimals": 8 },
+      "oracle": { "asset": "BTC", "price": "632824877778", "priceFloat": 63282.4877778, "timestamp": 1783630283 }
+    },
+    {
+      "asset": { "symbol": "ETH", "name": "Ethereum", "decimals": 8 },
+      "oracle": { "asset": "ETH", "price": "17490555556", "priceFloat": 1749.0555556, "timestamp": 1783630283 }
+    }
+  ]
+}
+```
+
+The response contains **14 markets**: BTC, ETH, XLM, SOL, XRP, ADA, BNB, TRX, HYPE, DOGE, ZEC, LINK, BCH, LTC.
+
+<Callout type="info">
+HYPE (Hyperliquid) is fully supported by the protocol and the API but is not shown in the web trading UI, because it has no Binance reference feed for chart seeding. You can price and trade it through the API.
+</Callout>
+
+`asset.decimals` is display metadata for the underlying asset — API prices are 7-decimal fixed point regardless of that field.
+
+## `GET /v1/markets/{asset}`
+
+Returns a single market with its current oracle price. Same data as one entry of `/v1/markets`.
+
+**Auth:** public.
+
+| Param | In | Type | Required | Notes |
+|---|---|---|---|---|
+| `asset` | path | string | yes | Symbol, e.g. `BTC`. Case-insensitive (uppercased server-side). |
+
+```bash
+curl -s https://noetherapi-production.up.railway.app/v1/markets/BTC
+```
+
+```json
+{
+  "asset": { "symbol": "BTC", "name": "Bitcoin", "decimals": 8 },
+  "oracle": { "asset": "BTC", "price": "632824877778", "priceFloat": 63282.4877778, "timestamp": 1783630283 }
+}
+```
+
+Unknown assets return `404`:
+
+```json
+{ "error": "Unknown asset", "asset": "FOO" }
+```
+
+For the price alone, use `GET /v1/markets/{asset}/price` — documented on the [Oracle endpoints](/developers/rest-api/oracle) page.
+
+## `GET /v1/markets/stats`
+
+Per-asset open interest and trailing 24-hour volume. Backed by the indexer's event projections and cached for 5 seconds; always returns a row for every supported asset (zeros when there is no data).
+
+**Auth:** public. **Params:** none.
+
+```bash
+curl -s https://noetherapi-production.up.railway.app/v1/markets/stats
+```
+
+```json
+{
+  "stats": [
+    {
+      "asset": "BTC",
+      "openInterestLong": "706980000000",
+      "openInterestShort": "1084000000000",
+      "openInterestNet": "-377020000000",
+      "openPositions": 10,
+      "volume24h": "0"
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `openInterestLong` / `openInterestShort` | Open notional per side, 7-decimal USDC string (the row above is $70,698 long / $108,400 short) |
+| `openInterestNet` | Long minus short (negative when shorts dominate) |
+| `openPositions` | Count of open positions in this market |
+| `volume24h` | Trailing 24-hour notional: opened sizes plus realized close/liquidation notional, 7-decimal USDC string |
+
+## `GET /v1/trades`
+
+Recent realized trades — position closes and liquidations, newest first. Backed by the indexer; the open-leg details (`asset`, `direction`, `size`, `entryPrice`) are joined by position ID and can be `null` when the open predates indexer history.
+
+**Auth:** public.
+
+| Param | In | Type | Required | Notes |
+|---|---|---|---|---|
+| `trader` | query | string | no | Stellar address, 56 chars |
+| `asset` | query | string | no | Symbol, 1–12 chars, uppercased |
+| `before_ts` | query | integer | no | Unix seconds; returns rows strictly older |
+| `limit` | query | integer | no | 1–200, default 50 |
+
+```bash
+curl -s "https://noetherapi-production.up.railway.app/v1/trades?limit=2"
+```
+
+```json
+{
+  "trades": [
+    {
+      "positionId": 297,
+      "trader": "GDLTJGVKPN7AZH5VJORUNNX2B3FDY6WHKP5LZJ4UIPDOAM3DP32BU6FS",
+      "kind": "liquidation",
+      "ledger": 2934769,
+      "ts": 1780685494,
+      "txHash": "e41112cef83937ea159d1ff26812a3e0433f496f97cf24aa0af365f7f41aaa2e",
+      "asset": "BTC",
+      "direction": 0,
+      "size": "1600000000",
+      "entryPrice": "735254476560",
+      "closePrice": "597200798102",
+      "pnl": null
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `kind` | `close` or `liquidation` |
+| `direction` | Integer: `0` = long, `1` = short |
+| `size`, `entryPrice`, `closePrice` | 7-decimal fixed-point strings |
+| `pnl` | Realized PnL; populated only for `kind: "close"`, always `null` on liquidations |
+
+Pagination is cursor-style: take the oldest `ts` you received and pass it as `before_ts` for the next page.
+
+## `GET /v1/candles`
+
+OHLC candles for charting, oldest-first.
+
+**Auth:** public.
+
+| Param | In | Type | Required | Notes |
+|---|---|---|---|---|
+| `asset` | query | string | yes | Symbol, 1–12 chars, uppercased |
+| `interval` | query | string | no | One of `1m`, `5m`, `15m`, `1h`, `4h`, `1d`, `1w`; default `1h` |
+| `limit` | query | integer | no | 1–1000, default 500 |
+
+```bash
+curl -s "https://noetherapi-production.up.railway.app/v1/candles?asset=BTC&interval=1h&limit=2"
+```
+
+```json
+{
+  "candles": [
+    { "time": 1783620000, "open": 63130.0344444, "high": 63483.7388889, "low": 63095.9455556, "close": 63220.9377778 },
+    { "time": 1783623600, "open": 63224.0911111, "high": 63370.1, "low": 63152.3877778, "close": 63239.7033333 }
+  ],
+  "source": "noeracle"
+}
+```
+
+`time` is the bucket start in unix seconds. OHLC values are plain floats (not fixed-point strings), and there is no volume field. An invalid `interval` returns a `400` validation error.
+
+### Where candle data comes from
+
+Every response carries a `source` field that tells you exactly what you are looking at:
+
+- **`noeracle`** — Noether's native candles. The indexer aggregates **Noeracle oracle price ticks** (the venue's own mark price) into OHLC buckets. These are price candles, **not trade prints** — a quiet market still produces candles, and they carry no traded volume.
+- **`binance`** — automatic fallback to Binance klines for the equivalent USDT pair. Used only when the native query returns zero rows for that asset and interval (for example on a fresh deployment before native history accumulates).
+
+Two consequences worth coding against:
+
+- **Unknown assets are not rejected.** `?asset=FOO` returns `200` with `{"candles": [], "source": "binance"}` — an empty array, not a `404`. Validate symbols against `/v1/markets` yourself if you need strictness.
+- **HYPE has no Binance pair**, so if native HYPE candles are missing the endpoint returns an empty array rather than falling back.
+
+<Callout type="info">
+Treat `source: "binance"` candles as reference prices from an external exchange, not Noether trading data. Native `noeracle` candles reflect the same oracle price your positions are marked and liquidated against.
+</Callout>
+
+## `GET /v1/leaderboard`
+
+Trader rankings by lifetime realized PnL or lifetime traded notional. Backed by the indexer and cached for 5 seconds.
+
+**Auth:** public.
+
+| Param | In | Type | Required | Notes |
+|---|---|---|---|---|
+| `sort` | query | string | no | `pnl` or `volume`; default `pnl` |
+| `limit` | query | integer | no | 1–200, default 50 |
+
+```bash
+curl -s "https://noetherapi-production.up.railway.app/v1/leaderboard?limit=2"
+```
+
+```json
+{
+  "sort": "pnl",
+  "leaders": [
+    { "trader": "GDA4JVVUE6CTF7FEGOFMKA3YE4E5J7SAAK7RACZLNIMXYF24OLLR3KZO", "pnl": "90519822517", "volume": "18000000000000" },
+    { "trader": "CCEQJKB3WVADOSCLCMFXL3VBZ4RKYEGFCG4SJVPERLFEWSIFMIWROLZA", "pnl": "60934543570", "volume": "14304920000000" }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `pnl` | Lifetime realized PnL (sum of close PnL), 7-decimal USDC string — the top row is about $9,051.98 |
+| `volume` | Lifetime traded notional: opens plus matched closes; liquidations are excluded — the top row is about $1.8M |
+
+Note that `trader` can be a **contract address** (starting with `C`) — Trader Vaults trade as contracts, so vaults appear on the leaderboard alongside wallets. See [Trader Vaults](/guides/trader-vaults).
+
+## Data freshness
+
+`/v1/markets` and `/v1/markets/{asset}` are live chain reads (3-second cache). `/v1/markets/stats`, `/v1/trades`, and `/v1/leaderboard` are served from the indexer's event projections, and `/v1/candles` from its candle aggregator — these can lag the chain. Check `GET /v1/health` and its `indexer.ledgerAgeSeconds` field to see how far behind the event projections are (see [System endpoints](/developers/rest-api/system)).
+
+## Next steps
+
+- [Oracle endpoints](/developers/rest-api/oracle) — single-asset price reads and the full price list
+- [Trading endpoints](/developers/rest-api/trading) — prepare, sign, and submit orders
+- [WebSocket API](/developers/websocket) — live tickers and trade streams instead of polling
+- [API explorer](/developers/api-explorer) — try these endpoints in the browser

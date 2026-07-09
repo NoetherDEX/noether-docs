@@ -1,3 +1,110 @@
-# Placeholder
+import { Callout, Steps } from 'nextra/components'
 
-_Content in progress._
+# Liquidity Vault guide
+
+This guide is for depositors: what the Liquidity Vault is, how to deposit USDC and withdraw it, and the risks you take on as a liquidity provider. Everything here runs on Stellar testnet with test funds — see [Getting started](/guides/getting-started) if you don't have test USDC yet.
+
+<Callout type="info">
+Looking for vaults run by individual traders? That's a different product — see the [Trader Vaults guide](/guides/trader-vaults). This page covers the protocol's own liquidity pool, labeled **"Noether Vault"** in the app.
+</Callout>
+
+## What the Liquidity Vault is
+
+The Liquidity Vault is the counterparty to every trade on Noether. When a trader opens a position, the vault backs the other side: if the trader closes at a profit, the vault pays that profit; if the trader closes at a loss, the loss flows into the vault.
+
+In return, the vault collects revenue:
+
+- **Trading fees** — today, 100% of trading fees go to the vault. (The protocol can later route a share of fees to a treasury; that split is not active yet.)
+- **Trader losses** — when traders lose, the pool grows.
+- **Funding payments owed by traders**, settled when their positions close.
+
+As a depositor you own a slice of this pool, so your deposit grows when the pool grows — and shrinks when traders win.
+
+## The NOE token
+
+When you deposit USDC, you receive **NOE**, the vault's LP share token. NOE is a regular Stellar asset (code `NOE`), so holding it requires a one-time **NOE trustline** in your wallet — the vault page adds it for you with a single signature if you don't have one.
+
+Share pricing is simple: the NOE price equals the vault's total assets divided by the NOE in circulation. The very first deposit is priced at 1 NOE = 1 USDC; after that, trading fees and trader losses push the price up, while trader profits push it down. Your NOE balance is your pool share, and its value in USDC is simply balance × NOE price — you can check the live price in the **"NOE Token Price"** card on the vault page.
+
+## Deposit USDC
+
+Open **Vaults** in the top navigation, then **"Open Noether Vault"**. You'll need a connected wallet, test USDC, and a little XLM for gas.
+
+<Steps>
+
+### Add the NOE trustline (first time only)
+
+If your wallet doesn't hold a NOE trustline yet, the deposit button is replaced by a trustline warning with an add-trustline button. Approve the single wallet signature; you'll see *"NOE trustline added — you can now deposit"*. You only do this once.
+
+### Enter an amount
+
+On the **Deposit** tab, type a USDC amount in **"You Pay"** (the **Max** button fills 95% of your balance, leaving headroom for fees and gas). The **"You Receive"** field previews the NOE you'll get, and the details rows show the current exchange rate ("1 NOE = X USDC") and the deposit fee. The fee is read live from the contract — currently **0.30%**.
+
+### Confirm in your wallet
+
+Click **"Deposit USDC"** and approve one wallet signature. On success you get a toast like *"Deposited 100 USDC → 99.7000 NOE"* — the NOE lands directly in your wallet.
+
+</Steps>
+
+<Callout type="warning">
+The deposit screen reminds you at the point of deposit: *"Pool value falls when traders profit — principal at risk."* Your NOE can be worth less USDC than you put in.
+</Callout>
+
+## Withdraw USDC
+
+Withdrawing converts NOE back to USDC at the current NOE price, minus a **0.30%** withdraw fee. Because NOE is a standard Stellar asset, the vault needs your permission to take it back — so a withdrawal takes **two wallet signatures**, which the page announces up front: *"Withdrawing takes two wallet signatures — first approve NOE, then withdraw. Up to ~40s total."*
+
+<Steps>
+
+### Enter an amount
+
+On the **Withdraw** tab, type a NOE amount in **"You Pay"** (**Max** selects your full NOE balance). **"You Receive"** previews the USDC out, with the exchange rate and fee shown below.
+
+### Signature 1 — approve NOE
+
+The button shows **"1/2 Approving NOE…"** while your wallet asks you to approve the vault to spend your NOE. The approval is valid for roughly one month, so a stalled withdrawal doesn't leave an open-ended permission.
+
+### Signature 2 — withdraw
+
+The button switches to **"2/2 Withdrawing…"** and your wallet asks for the actual withdrawal. On success: *"Withdrew 50.0000 NOE → 49.85 USDC"*.
+
+</Steps>
+
+If something fails, the error tells you exactly where you stopped: a failure at step 1 means *"NOE approval failed — nothing was withdrawn"*; a failure at step 2 means the approval went through but *"no USDC left the pool"*. In both cases your funds are unchanged — just retry.
+
+<Callout type="info">
+Withdrawals can never pull out liquidity that is reserved to pay open positions. If the vault's free balance can't cover your withdrawal on top of those reservations, the transaction fails rather than shortchanging traders — try a smaller amount or wait for positions to close.
+</Callout>
+
+## Fees at a glance
+
+| Action | Fee | Notes |
+|---|---|---|
+| Deposit | 0.30% | Deducted from your USDC before your NOE is calculated |
+| Withdraw | 0.30% | Deducted from your USDC proceeds |
+
+Both fees are read live from the contract on the vault page (they display as "—" if the read fails, never an assumed number), and both accrue back into the pool — so as an ongoing depositor you also benefit from other people's entry and exit fees.
+
+## Risks
+
+<Callout type="error">
+**You take the other side of trader PnL.** When traders profit, the pool value decreases, and your NOE may be worth less USDC than you deposited. This is the core trade-off of being the house — not an edge case.
+</Callout>
+
+What limits the downside:
+
+- **The insurance buffer pays first.** The protocol maintains a separate buffer of first-loss capital that sits outside the NOE price. When a winning trader is paid out, the buffer is drained before LP funds are touched.
+- **Open-interest caps bound exposure.** Every new position reserves its full potential payout in the vault. Open interest in any single asset, per side (long or short), is capped at about **25% of vault assets**, and total reservations across all assets are capped at **70% of vault assets**. Opens that would breach a cap are rejected, so the vault can never be fully committed to one market — or to trades in aggregate.
+- **Accounting follows real money.** The pool is credited only for USDC that actually arrives, and a trader's loss on an isolated position can never exceed that position's own collateral.
+
+These guardrails reduce the risk; they don't remove it. On testnet everything is play money, so this is the safest possible place to watch the mechanics in action.
+
+## Why APR shows "—"
+
+The **"Current APR"** card on the vault page currently shows an em-dash with the note *"Shown once fee revenue is tracked"*. A real APR needs a history of fee revenue, and the app deliberately refuses to fabricate a yield number in the meantime. The same honesty rule applies across Noether: an unknown value renders as "—" or a stale badge, never a made-up figure.
+
+## Track your position
+
+The **"Your Position"** card on the vault page shows your NOE balance, its current USDC value, and your percentage share of the pool. Below it, a transaction history lists your past vault activity. If a balance read fails you'll see "Couldn't load your position" rather than misleading zeros.
+
+Questions about anything here? Check the [FAQ](/guides/faq), or dig into the mechanics on the [trading mechanics](/protocol/trading-mechanics) and [contracts](/protocol/contracts) pages.

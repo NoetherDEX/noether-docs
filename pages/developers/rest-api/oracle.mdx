@@ -1,3 +1,100 @@
-# Placeholder
+import { Callout } from 'nextra/components'
 
-_Content in progress._
+# Oracle & prices
+
+Two public endpoints return the current oracle price for Noether's markets: `GET /v1/oracle/prices` (all assets at once) and `GET /v1/markets/{asset}/price` (one asset). Both are live chain reads — the gateway queries the Noeracle shim contract's `lastprice` function over Soroban RPC, so you get the same price the market contract itself trades against, not an indexer projection.
+
+Base URL: `https://noetherapi-production.up.railway.app`. No authentication is required. Responses are cached in the gateway for 3 seconds per asset.
+
+<Callout type="info">
+These prices come from the Noeracle oracle system running on Stellar testnet. For the full price chain — who signs prices, how they land on-chain, and the guards around them — see [Oracle & price feeds](/protocol/oracle).
+</Callout>
+
+## Price format
+
+Every price object has the same shape:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `asset` | string | Asset symbol, e.g. `BTC` |
+| `price` | string | Price as a 7-decimal fixed-point integer, serialized as a string. Divide by 10,000,000 to get dollars: `"632824877778"` = $63,282.4877778 |
+| `priceFloat` | number | The same price pre-converted to a float, for convenience |
+| `timestamp` | integer | Unix seconds — when this price was attested on-chain |
+
+Use the `price` string when you need exact math (it round-trips the on-chain integer value losslessly); use `priceFloat` for display. This 7-decimal string convention applies to all money, price, and size fields across the API.
+
+## `GET /v1/oracle/prices`
+
+Returns the current oracle price for all 14 supported assets: BTC, ETH, XLM, SOL, XRP, ADA, BNB, TRX, HYPE, DOGE, ZEC, LINK, BCH, LTC.
+
+**Auth:** none. **Parameters:** none.
+
+```bash
+curl -s https://noetherapi-production.up.railway.app/v1/oracle/prices
+```
+
+Response `200` (excerpt):
+
+```json
+{
+  "prices": [
+    { "asset": "BTC", "price": "632977577778", "priceFloat": 63297.7577778, "timestamp": 1783630712 },
+    { "asset": "ETH", "price": "17486044444", "priceFloat": 1748.6044444, "timestamp": 1783630712 }
+  ]
+}
+```
+
+The full response contains one entry per supported asset.
+
+## `GET /v1/markets/{asset}/price`
+
+Returns the current oracle price for a single asset.
+
+**Auth:** none.
+
+| Parameter | In | Type | Notes |
+|---|---|---|---|
+| `asset` | path | string | Asset symbol, e.g. `BTC`. Validated against the supported list — unknown symbols return 404 |
+
+```bash
+curl -s https://noetherapi-production.up.railway.app/v1/markets/BTC/price
+```
+
+Response `200`:
+
+```json
+{ "asset": "BTC", "price": "632824877778", "priceFloat": 63282.4877778, "timestamp": 1783630283 }
+```
+
+Response `404` for an unsupported asset:
+
+```json
+{ "error": "Unknown asset", "asset": "FOO" }
+```
+
+The same price object is also embedded in `GET /v1/markets` and `GET /v1/markets/{asset}` as the `oracle` field — see [Markets](/developers/rest-api/markets). If you need every asset, prefer `/v1/oracle/prices` over N single-asset calls.
+
+## Staleness semantics
+
+The `timestamp` field is the attestation time of the price currently stored on-chain, not the time of your HTTP request. Under normal operation the keeper pushes fresh signed prices roughly every 30 seconds, so the timestamp is usually well under a minute old.
+
+Two things to know when consuming it:
+
+- **The gateway never rejects a stale price on these read endpoints.** It returns whatever the shim last stored, with its timestamp. If you need a freshness guarantee, compare `timestamp` against your own clock.
+- **The chain enforces freshness for trading.** The market contract rejects risk-increasing operations (opening positions, executing entry orders) when the on-chain price is older than 60 seconds, returning contract error 30 (`PriceStale`). Risk-reducing operations — closes and liquidations — are never blocked by staleness. Trades placed through the app or the API's prepare/submit flow relay a fresh signed price in the same transaction, so in practice they don't hit this limit. Details in [Oracle & price feeds](/protocol/oracle).
+
+Allow up to 3 seconds of additional lag from the gateway's per-asset cache.
+
+<Callout type="info">
+For a streaming feed instead of polling, subscribe to the `ticker.<ASSET>` channel on the WebSocket API — it pushes the same shim-read price on a 3-second cadence. See [WebSocket](/developers/websocket).
+</Callout>
+
+## Rate limits
+
+Both endpoints count against the `public` tier: 60 requests per minute per IP. Sending a valid API key (even on these public endpoints) moves you to your key's bucket at 600 requests per minute. Every response carries `X-RateLimit-Tier` and `X-RateLimit-Remaining` headers; exceeding the limit returns `429` with a `Retry-After` header.
+
+## Next steps
+
+- [Markets](/developers/rest-api/markets) — market list, stats, trades, and candles
+- [Trading](/developers/rest-api/trading) — the prepare → sign → submit flow that uses these prices
+- [Oracle & price feeds](/protocol/oracle) — the full on-chain price chain

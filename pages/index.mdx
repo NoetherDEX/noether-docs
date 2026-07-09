@@ -1,3 +1,54 @@
-# Placeholder
+import { Callout, Cards } from 'nextra/components'
 
-_Content in progress._
+# Introduction
+
+Noether is a decentralized perpetual futures exchange on Stellar. Every order, match, and settlement executes in Soroban smart contracts — positions, liquidations, and funding payments are all on-chain transactions you can verify yourself.
+
+<Callout type="warning">
+Noether is live on the Stellar **testnet**. All funds are test funds — get free test USDC from the in-app faucet. API key issuance is currently in closed beta. Mainnet is planned but not live.
+</Callout>
+
+## At a glance
+
+| | |
+|---|---|
+| Markets | 14 perpetual pairs, including BTC-PERP, ETH-PERP, XLM-PERP, and SOL-PERP |
+| Leverage | Up to 10x (25x is planned for mainnet) |
+| Collateral | USDC, with isolated and cross margin modes |
+| Fees | Maker from 0.020%, taker from 0.050% — rates decrease with trading volume |
+| Minimum collateral | 10 USDC per position |
+| Maximum position size | $100,000 notional |
+
+## How it fits together
+
+- **Trade in the browser** at [noether.exchange](https://noether.exchange) with Freighter or LOBSTR (via WalletConnect). There is no exchange account — your wallet signs every transaction.
+- **Build against the gateway**, a REST and WebSocket API that prepares transactions for you to sign locally. It never holds your keys. TypeScript and Python SDKs mirror the full API surface.
+- **The market contract** holds all trading logic; the Liquidity Vault is the counterparty to every trade and pays LPs the fees. Prices come from the Noeracle oracle, relayed atomically at trade time by the Noether Router so trades always execute against a fresh signed price.
+
+## Where to start
+
+<Cards>
+  <Cards.Card title="Start trading" href="/guides/getting-started" />
+  <Cards.Card title="Build on the API" href="/developers" />
+  <Cards.Card title="Understand the protocol" href="/protocol/architecture" />
+</Cards>
+
+## Popular pages
+
+- [Trading guide](/guides/trading) — orders, margin modes, fees, and liquidation from the trader's point of view
+- [Authentication](/developers/authentication) — wallet-signed challenges and bearer API keys
+- [WebSocket API](/developers/websocket) — live tickers, trades, and account events
+- [TypeScript SDK](/developers/sdk-ts) — typed client for every endpoint plus a reconnecting WebSocket client
+- [API explorer](/developers/api-explorer) — try every endpoint against the live gateway
+- [Contract addresses](/protocol/contracts) — the deployed Soroban contracts and how to verify them
+
+## Links
+
+| | |
+|---|---|
+| App | [noether.exchange](https://noether.exchange) · [trade page](https://noether.exchange/trade) |
+| Live API reference (Swagger) | [noetherapi-production.up.railway.app/docs](https://noetherapi-production.up.railway.app/docs) |
+| TypeScript SDK on npm | [npmjs.com/package/noether-sdk](https://www.npmjs.com/package/noether-sdk) |
+| Python SDK on PyPI | [pypi.org/project/noether-sdk](https://pypi.org/project/noether-sdk/) |
+| GitHub | [github.com/NoetherDEX/noether](https://github.com/NoetherDEX/noether) |
+| X | [@Noetherdex](https://x.com/Noetherdex) |

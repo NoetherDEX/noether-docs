@@ -1,3 +1,178 @@
-# Placeholder
+import { Callout, Cards } from 'nextra/components'
 
-_Content in progress._
+# Architecture
+
+Noether is a fully on-chain perpetual futures exchange on Stellar: every position, order, liquidation, and settlement is executed by Soroban smart contracts. This page maps the whole system — six on-chain contracts and four off-chain services — and shows how a trade, a price, and an event actually flow through it. It's written for integrators and mechanics-curious traders.
+
+<Callout type="info">
+  The live deployment runs on the Stellar **testnet** with test funds. The app is at
+  [https://noether.exchange](https://noether.exchange) and the API gateway at
+  `https://noetherapi-production.up.railway.app`. Mainnet is planned. See
+  [/protocol/networks](/protocol/networks) for endpoints and
+  [/protocol/contracts](/protocol/contracts) for the current addresses.
+</Callout>
+
+## System overview
+
+```text
+            Noeracle attestation service (off-chain, api.noeracle.org)
+            publishers sign (feed, price, conf, timestamp) rounds
+                     │                                │
+   fetch ONE signed  │                                │  fetch latest signed round
+   attestation at    │                                │  about every 30 s
+   trade time        ▼                                ▼
+                ┌──────────┐                    ┌────────────┐
+  Trader ──────▶│ Web app  │                    │ Keeper bot │
+  (wallet signs)│(one tx)  │                    └─────┬──────┘
+                └────┬─────┘                          │
+                     ▼                                │ 1. relay attestation
+            ┌─────────────────┐                       │    ──▶ Noeracle (on-chain)
+            │ Noether Router  │                       │ 2. direct market calls:
+            │ verify-then-    │                       │    liquidate, execute
+            │ trade, one tx:  │                       │    orders, apply funding,
+            │ 1. allowlist    │                       │    trailing-stop peaks
+            │ 2. sanity band  │                       │
+            │ 3. relay price ─┼──▶ Noeracle (on-chain)│
+            │ 4. call market ─┼──────────┐            │
+            └─────────────────┘          ▼            ▼
+                              ┌──────────────────────────┐
+                              │      Market contract      │
+                              │  positions, orders,       │──reads price──▶ Noeracle Shim
+                              │  liquidations, funding    │                 (SEP-40 lastprice)
+                              └──────┬────────────────────┘                       │
+                       reserve /     │    fees, losses                            ▼
+                       settle PnL    ▼                                    Noeracle (on-chain)
+                              ┌──────────────────┐
+                              │  Liquidity Vault  │◀── LP deposits (USDC ⇄ NOE)
+                              └──────────────────┘
+
+  Market / Vault Factory / Referral events
+                     │
+                     ▼  polls getEvents every 2 s
+              ┌────────────┐   writes projections    ┌──────────────┐
+              │  Indexer   │────────────────────────▶│ libSQL/Turso │
+              └────────────┘                          └──────┬───────┘
+                     ▲  also polls Noeracle HTTP             │
+                     │  every 3 s → OHLC candles             ▼
+                                                     ┌──────────────┐
+   on-chain reads (shim, 3 s cache) ────────────────▶│ API gateway  │──▶ REST /v1/*
+                                                     │              │──▶ WS  /v1/ws
+                                                     └──────────────┘
+```
+
+Three things to notice:
+
+1. **Prices are pulled, not pushed on a fixed schedule alone.** The keeper keeps the on-chain price fresh in the background (about every 30 seconds), and the Noether Router additionally relays a sub-second-fresh signed attestation *inside the same transaction* as your trade — so a trade can never fail the market's 60-second staleness check. Details in [/protocol/oracle](/protocol/oracle).
+2. **The Liquidity Vault is the counterparty to every trade.** The market never holds LP funds itself; it reserves potential payouts at open and settles PnL against the vault at close.
+3. **Reads are split by freshness needs.** Prices come straight from the chain (via the shim); histories, leaderboards, and open-position lists come from indexer projections rebuilt from contract events.
+
+## On-chain contracts
+
+All six contracts are Soroban contracts deployed on the Stellar testnet. Addresses live on [/protocol/contracts](/protocol/contracts).
+
+### Market
+
+The core trading engine. One market contract serves **all 14 trading pairs** — every entry point takes an `asset` symbol and positions store their pair, so adding a new pair requires no market redeploy. It handles opening and closing positions (isolated and cross margin), limit / stop-limit / stop-loss / take-profit / trailing-stop orders, liquidations (per-position and whole cross-margin accounts), lazy funding, volume-based fee tiers, and per-asset open-interest tracking. It reads prices through the Noeracle Shim, and it calls the Liquidity Vault to reserve potential payouts when a position opens and to settle PnL when it closes. There is deliberately no oracle-setter or upgrade entry point on the market — its price source binding is fixed at initialization.
+
+### Liquidity Vault
+
+The LP pool and the counterparty to all trades. Liquidity providers deposit test USDC (0.30% deposit fee, 0.30% withdrawal fee on the current deployment) and receive the NOE LP token; assets under management are total USDC plus accrued fees minus traders' unrealized PnL, floored at zero. The vault also enforces the protocol's open-interest caps at open time: reserved payouts across all positions may not exceed **70% of AUM**, and each asset's per-side open interest is capped at **25% of AUM** by default. NOE is a SAC-wrapped classic Stellar asset, pre-minted to the vault — deposits and withdrawals move existing tokens rather than minting and burning. See [/guides/vault](/guides/vault) for the LP flow.
+
+### Noeracle Shim
+
+A thin interface bridge between the market and the oracle. It exposes the standard SEP-40 read `lastprice(asset)` returning a `(price, timestamp)` pair with 7 decimals, and translates each call into Noeracle's native persistent-price read. If Noeracle has no entry for an asset, the shim **panics with `OracleUnavailable` (#32)** rather than returning anything — trading halts loudly instead of running on a missing price. The shim's admin can rotate the underlying Noeracle address and upgrade the shim's code in place, which is how new pairs are added without changing any address the market depends on.
+
+### Noether Router
+
+The verify-then-trade entry point used at trade time. Soroban allows exactly one host-function invocation per transaction, so a client can't simply prepend an oracle update to a trade — the router does both atomically. Its entry points (`open_with_price`, `close_with_price`, `liquidate_with_price`, `execute_with_price`, and `liquidate_cross_with_prices` for multi-asset cross accounts) each verify a signed Noeracle attestation against a **publisher allowlist**, check the price against a coarse per-asset sanity band, relay the attestation on-chain, and then call the market — all in one transaction. The trader signs and authorizes the whole call tree; the router holds and moves no funds of its own.
+
+### Vault Factory
+
+Powers **Trader Vaults** — user-created copy-trading vaults, distinct from the protocol Liquidity Vault. Anyone can create a vault; depositors buy shares, and the vault leader trades the pooled collateral through proxy calls into the market contract. The leader earns a 10% profit share and must maintain at least a 5% holding of their own vault at all times. See [/guides/trader-vaults](/guides/trader-vaults).
+
+### Referral
+
+The on-chain referral system: register a code, bind a referee to a referrer, record trades (callable only by the market address), and claim accrued rewards. The economics are a 4% fee discount for referees and a 10% fee share for referrers. Today the deployed market does not yet invoke the referral discount hook on-chain; the API gateway applies the referee discount off-chain in its fee calculation, so contract events and user-visible fees can diverge slightly for referred wallets until the on-chain hook ships. See [/guides/referrals](/guides/referrals).
+
+<Callout type="info">
+  A seventh contract sits underneath all of this: **Noeracle**, the signed price source. It's a
+  separate pull-oracle project, not part of the Noether repo — publishers sign price rounds
+  off-chain and anyone may relay a signed attestation on-chain. How Noether consumes and
+  defends against it is covered in [/protocol/oracle](/protocol/oracle).
+</Callout>
+
+## Off-chain services
+
+### Web app
+
+The trading interface at [https://noether.exchange](https://noether.exchange) (trade, portfolio, vault, leaderboard, faucet, trader vaults, referrals, API keys). It performs direct chain reads and writes for wallet-signed operations, and calls the API gateway for indexed data. For a trade, it fetches one signed attestation from the Noeracle HTTP API, appends the price arguments to the trade arguments, and submits a single router transaction signed by your wallet (Freighter or LOBSTR via WalletConnect). Live chart prices stream from Noeracle's server-sent-events feed at roughly 500 ms cadence, with an automatic fallback to polling the on-chain shim every 5 seconds if the stream goes quiet for 10 seconds — display data only; transactions always carry a signed attestation.
+
+### API gateway
+
+The public REST and WebSocket service at `https://noetherapi-production.up.railway.app` — REST under `/v1/*`, WebSocket at `/v1/ws`, interactive OpenAPI docs at `/docs`. It reads on-chain prices through the shim using read-only transaction simulation with a 3-second cache, and serves everything historical from the indexer's projections. Authentication is a wallet-challenge flow that issues bearer API keys; rate limits are tiered per key, and during the closed beta most authenticated endpoints require an allowlisted wallet. The health endpoint at `GET /v1/health` echoes every contract address the gateway has resolved along with its source, so you can always verify which deployment a gateway instance is serving. Start at [/developers](/developers).
+
+### Indexer
+
+Turns contract events into queryable data. It polls Soroban `getEvents` every 2 seconds from a persisted ledger cursor, decodes events from the market, vault factory, and referral contracts, and writes projections into a libSQL (Turso) database — the raw event archive, open positions, realized trades, trader-vault state, and referral state. It also runs the **candle aggregator**: an independent loop that polls the Noeracle HTTP API every 3 seconds and folds prices into OHLC buckets (1m through 1w), seeding history from Binance on a fresh database. Reconciliation jobs periodically re-verify projected positions and trader-vault balances against direct contract reads, so projection drift is corrected from on-chain truth.
+
+### Keeper bot
+
+The chain's heartbeat — an autonomous service that keeps the protocol live. On its background schedule it fetches the latest signed Noeracle round and relays an attestation on-chain for every pair **about every 30 seconds**, which keeps prices comfortably inside the market's 60-second staleness window. On a faster **5-second cycle** it snapshots all positions and orders, then calls the market directly (not through the router) to liquidate under-margined positions and cross accounts, execute triggered orders, and update trailing-stop peaks — each candidate is simulated first and submitted only when the simulation succeeds, so on-chain state is always the final arbiter. It applies the hourly funding rate on schedule and extends contract storage lifetimes every 6 hours. Before any price push it runs its own defenses: absolute sanity bands, a per-push jump bound, and a cross-check against an independent reference feed.
+
+## Life of a trade
+
+Putting the pieces together, here is what happens when you open a market position from the web app:
+
+1. **Fetch an attestation.** The web app requests the latest signed price round for your pair from the Noeracle HTTP API (`https://api.noeracle.org/v1/latest`). The attestation carries the price (7-decimal fixed point), a timestamp, a round ID, the publisher key, and an ed25519 signature.
+2. **Build and sign one transaction.** The app assembles a single router call — `open_with_price(trader, asset, collateral, leverage, direction, price, timestamp, round_id, pubkeys, sigs)` — and your wallet signs it. You authorize the entire call tree with that one signature.
+3. **Router verification.** On-chain, the router checks every supplied publisher key against its stored allowlist (a foreign or empty key set fails with `Unauthorized`, error #3) and checks the price against a coarse per-asset sanity band (a garbage price fails with `InvalidPrice`, error #31, even if the signature is valid).
+4. **Price relay.** The router relays the verified attestation into Noeracle's persistent on-chain storage — the exact slot the shim reads.
+5. **Market execution.** In the same transaction, the router invokes the market's `open_position`. The market reads the price back through the shim; because the relay just happened, the price is sub-second fresh and cannot fail the 60-second staleness check. Risk-increasing paths like opens also enforce a 1% deviation band against the last good price.
+6. **Vault reservation.** The market calls the Liquidity Vault to reserve the position's maximum payout. If the reservation would push aggregate reserves past 70% of AUM, or the pair's per-side open interest past 25% of AUM, the open fails with `OpenInterestCapExceeded` (error #82).
+7. **Event emission.** The position is stored and a `position_opened` event is emitted with the position ID, trader, asset, direction, size, and entry price.
+8. **Indexing.** Within a couple of seconds the indexer's poll picks up the event and upserts the open-positions projection — the position now appears in `GET /v1/positions/open` and on the WebSocket event channels.
+
+Closing runs the mirror path through `close_with_price`: the market computes realized PnL, settles it against the vault, applies any accrued funding (funding is lazy — the hourly rate accumulates globally and is charged per position at close or liquidation), and emits `position_closed`, which the indexer folds into the trades, leaderboard, and volume projections.
+
+<Callout type="info">
+  Staleness and deviation guards apply only to **risk-increasing** operations (opens, order
+  executions). Closes and liquidations are never blocked by a stale or deviating price — you can
+  always reduce risk. The full guard stack is documented in [/protocol/oracle](/protocol/oracle).
+</Callout>
+
+## What is served from where
+
+The gateway mixes two data sources: direct chain reads (always current) and indexer projections (rebuilt from events). This table maps the public API surface to its source.
+
+| Endpoint | Source | Notes |
+|---|---|---|
+| `GET /v1/markets` | Direct chain read (shim) | All 14 pairs with current oracle price; 3 s cache |
+| `GET /v1/oracle/*` | Direct chain read (shim) | Same read path as the market contract itself |
+| WS `ticker.<ASSET>` | Direct chain read (shim) | Oracle ticks pushed every 3 s |
+| `GET /v1/candles` | `candles` projection | Built from Noeracle HTTP polling, not chain events; Binance fallback; response carries a `source` field (`"noeracle"` or `"binance"`) |
+| `GET /v1/events` | `events_raw` projection | Raw contract event archive, filterable by topic, contract, ledger, timestamp |
+| `GET /v1/positions/open` | `positions` projection | Upserted on open, deleted on close/liquidation; reconciled against contract reads |
+| `GET /v1/trades` | `trades` projection | Realized closes and liquidations, joined to their opens; WS `trades.<ASSET>` streams the same |
+| `GET /v1/leaderboard` | `trades` projection (aggregated) | Sort by `pnl` or `volume` |
+| `GET /v1/account/volume` | `trades` projection (aggregated) | 14-day rolling volume, mirrors the contract's fee-tier volume record; liquidations count no volume |
+| `GET /v1/vaults` and per-vault routes | `vaults` + `vault_trades` projections | Reconciled against canonical contract read-backs |
+| Referral endpoints | `referrers` projection + chain reads | See [/developers/rest-api/referral](/developers/rest-api/referral) |
+| `GET /v1/health` | Gateway itself | Resolved contract addresses with source, plus indexer cursor age |
+
+A practical rule of thumb: anything price-shaped is a live chain (or Noeracle) read; anything history-shaped is a projection. The `/v1/health` response includes the indexer's last ledger and its age in seconds, so you can programmatically check how current the projection side is before trusting history endpoints.
+
+## Keeping the pieces in agreement
+
+Two cross-system invariants are worth knowing as an integrator:
+
+- **One oracle, three consumers.** The router (write path), the shim (read path), and the keeper must all point at the same Noeracle deployment — the router writes exactly the slots the shim reads on the market's behalf.
+- **One pair list, four copies.** The supported-pair list is compiled into the shim and router, mirrored in the keeper's guard bands, and shipped in the API/SDK asset list. Adding a pair updates all four and upgrades the shim and router in place — no addresses change and the market is untouched.
+
+## Next steps
+
+<Cards>
+  <Cards.Card title="Oracle and price security" href="/protocol/oracle" />
+  <Cards.Card title="Contract addresses" href="/protocol/contracts" />
+  <Cards.Card title="Trading mechanics" href="/protocol/trading-mechanics" />
+  <Cards.Card title="API overview" href="/developers" />
+</Cards>

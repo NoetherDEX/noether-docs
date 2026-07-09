@@ -1,3 +1,171 @@
-# Placeholder
+import { Callout } from 'nextra/components'
 
-_Content in progress._
+# Referral
+
+Endpoints for the on-chain referral system: resolve referral codes, inspect referrer profiles and bindings, and (with an API key) read your own referral state, referred trades, and claims. For the end-user flow, see [Referrals](/guides/referrals).
+
+Base URL: `https://noetherapi-production.up.railway.app` — all paths are under `/v1`. All money fields are strings of 7-decimal fixed-point USDC (`10000000` = 1.0 USDC).
+
+<Callout type="info">
+**Referral economics activate in v1.1.** Code registration and referee binding are live today, and these endpoints reflect them. The fee economics — a 4% referee fee discount and a 10% referrer share of each referred trade's fee — are not yet accruing on-chain, so `totalEarned`, `claimable`, and `totalVolumeGenerated` currently read `"0"`, and the trades/claims endpoints return empty lists until v1.1.
+</Callout>
+
+## Endpoints
+
+| Method and path | Auth | Purpose |
+|---|---|---|
+| `GET /v1/referral/lookup` | Public | Resolve a referral code to its referrer profile |
+| `GET /v1/referral/info` | Public | Referrer profile and binding for a wallet address |
+| `GET /v1/referral/me` | API key | Your own referrer profile and referee binding |
+| `GET /v1/referral/me/trades` | API key | Trades you earned referral fees on |
+| `GET /v1/referral/me/claims` | API key | Your referral fee claims |
+
+Authenticated endpoints take the standard header `Authorization: Bearer <keyId>:<secret>` — see [Authentication](/developers/authentication).
+
+## The referrer row
+
+`lookup`, `info`, and `me` all return the same referrer row shape:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `referrer` | string | Stellar address that owns the code |
+| `code` | string | The referral code (3–16 characters, case-sensitive) |
+| `createdAt` | integer | Code creation time, unix seconds |
+| `referredCount` | integer | Number of wallets bound to this code |
+| `totalVolumeGenerated` | string | Cumulative **fee amounts** from referred trades, 7-decimal USDC — see the note below |
+| `totalEarned` | string | Lifetime referrer share earned, 7-decimal USDC |
+| `claimable` | string | Currently claimable referrer share, 7-decimal USDC |
+| `updatedAt` | integer | Last update time |
+
+<Callout type="warning">
+**`totalVolumeGenerated` is not notional volume.** Despite the name, this field accumulates the *fee amounts* of referred trades, not their notional size. A referred $10,000 trade that paid a $5.00 taker fee adds `"50000000"` (5.00 USDC) to this field, not `"100000000000"`. Until v1.1 activates trade recording, it stays `"0"`.
+</Callout>
+
+## `GET /v1/referral/lookup` — resolve a code
+
+Public. Resolves a referral code to its referrer profile.
+
+| Query param | Required | Constraints |
+|---|---|---|
+| `code` | yes | 3–16 characters |
+
+```bash
+curl -s "https://noetherapi-production.up.railway.app/v1/referral/lookup?code=EMMY"
+```
+
+```json
+{
+  "referrer": "GDA4JVVUE6CTF7FEGOFMKA3YE4E5J7SAAK7RACZLNIMXYF24OLLR3KZO",
+  "code": "EMMY",
+  "createdAt": 1780259257,
+  "referredCount": 2,
+  "totalVolumeGenerated": "0",
+  "totalEarned": "0",
+  "claimable": "0",
+  "updatedAt": 1780259258123
+}
+```
+
+Unknown code returns 404:
+
+```json
+{"error": "unknown_code", "code": "NOSUCH"}
+```
+
+## `GET /v1/referral/info` — profile by address
+
+Public. Returns a wallet's referrer profile plus, if that wallet was itself referred, the binding it holds as a referee.
+
+| Query param | Required | Constraints |
+|---|---|---|
+| `address` | yes | Stellar address, exactly 56 characters |
+
+```bash
+curl -s "https://noetherapi-production.up.railway.app/v1/referral/info?address=GDA4JVVUE6CTF7FEGOFMKA3YE4E5J7SAAK7RACZLNIMXYF24OLLR3KZO"
+```
+
+Response shape: `self` is a referrer row, `binding` is a binding row or `null`.
+
+```json
+{
+  "self": {
+    "referrer": "GDA4JVVUE6CTF7FEGOFMKA3YE4E5J7SAAK7RACZLNIMXYF24OLLR3KZO",
+    "code": "EMMY",
+    "createdAt": 1780259257,
+    "referredCount": 2,
+    "totalVolumeGenerated": "0",
+    "totalEarned": "0",
+    "claimable": "0",
+    "updatedAt": 1780259258123
+  },
+  "binding": null
+}
+```
+
+A binding row has the fields `referee`, `referrer`, `code`, `boundAt`, and `txHash`. Bindings are permanent — a referee can bind to a code once and cannot rebind.
+
+If the address never registered a code, the endpoint returns 404:
+
+```json
+{"error": "no_code", "address": "GDA4JVVUE6CTF7FEGOFMKA3YE4E5J7SAAK7RACZLNIMXYF24OLLR3KZO"}
+```
+
+## `GET /v1/referral/me` — your referral state
+
+Requires an API key. Returns your own referrer profile (`self`) and the binding you hold as a referee (`binding`). Either may be `null` — unlike `/v1/referral/info`, this endpoint does not 404 when you have no code.
+
+```bash
+curl -s https://noetherapi-production.up.railway.app/v1/referral/me \
+  -H "Authorization: Bearer nk_your24charkeyid:your64charsecret"
+```
+
+```json
+{
+  "self": null,
+  "binding": {
+    "referee": "GCAAZWLEY65OHIDYXS6LVHVW7VHGFNFJ3UYBXSRLIRQMCD5NLCZTL3HZ",
+    "referrer": "GDA4JVVUE6CTF7FEGOFMKA3YE4E5J7SAAK7RACZLNIMXYF24OLLR3KZO",
+    "code": "EMMY",
+    "boundAt": 1780260063,
+    "txHash": "e41112cef83937ea159d1ff26812a3e0433f496f97cf24aa0af365f7f41aaa2e"
+  }
+}
+```
+
+## `GET /v1/referral/me/trades` — referred trades
+
+Requires an API key. Lists trades this owner earned referral fees on, newest first.
+
+| Query param | Required | Constraints |
+|---|---|---|
+| `limit` | no | 1–200, default 50 |
+
+```bash
+curl -s "https://noetherapi-production.up.railway.app/v1/referral/me/trades?limit=50" \
+  -H "Authorization: Bearer nk_your24charkeyid:your64charsecret"
+```
+
+Response: `{"trades": [...]}` where each row has `id`, `referee`, `referrer`, `originalFee`, `discount`, `payout`, `ledger`, `ts` (unix seconds), and `txHash`. `originalFee`, `discount`, and `payout` are 7-decimal USDC strings.
+
+Today this returns `{"trades": []}` — referred-trade recording begins with the v1.1 economics activation. Once live, the defaults are `discount` = 4% of `originalFee` and `payout` = 10% of `originalFee` (a `"10000000000"` fee, $1,000, yields a `"400000000"` discount and a `"1000000000"` payout).
+
+## `GET /v1/referral/me/claims` — claim history
+
+Requires an API key. Lists your referral fee claims, newest first.
+
+| Query param | Required | Constraints |
+|---|---|---|
+| `limit` | no | 1–200, default 50 |
+
+```bash
+curl -s "https://noetherapi-production.up.railway.app/v1/referral/me/claims?limit=50" \
+  -H "Authorization: Bearer nk_your24charkeyid:your64charsecret"
+```
+
+Response: `{"claims": [...]}` where each row has `id`, `referrer`, `amount` (7-decimal USDC string), `ledger`, `ts` (unix seconds), and `txHash`. Returns `{"claims": []}` until claiming activates in v1.1.
+
+## Next steps
+
+- [Authentication](/developers/authentication) — get an API key for the `me` endpoints
+- [Referrals guide](/guides/referrals) — create and share a code from the app
+- [REST API overview](/developers/rest-api) — conventions, rate limits, pagination
