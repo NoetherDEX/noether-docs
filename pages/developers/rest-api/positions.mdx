@@ -20,7 +20,7 @@ Returns positions that have been opened and not yet closed or liquidated. Positi
 |---|---|---|---|
 | `trader` | string | no | Stellar address to filter by. Returns only that trader's open positions. |
 
-There is no `limit` parameter. The response is hard-capped at **200 rows** for the venue-wide query and **500 rows** when filtered by `trader`.
+Rows are returned newest-first (ordered by `openedAt` descending). There is no `limit` parameter. The response is hard-capped at **200 rows** for the venue-wide query and **500 rows** when filtered by `trader`.
 
 ### Example request
 

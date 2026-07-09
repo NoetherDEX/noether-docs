@@ -72,7 +72,7 @@ curl -s "https://noetherapi-production.up.railway.app/v1/vaults?limit=1"
 | `updatedAt` | integer | Last projection update, **milliseconds** since epoch |
 | `depositorCount` | integer | Distinct depositors |
 | `openPositions` | integer | Currently open leader positions |
-| `tradeCount` | integer | Lifetime leader trades |
+| `tradeCount` | integer | Lifetime leader trades (counts position opens) |
 | `drawdownBps` | integer | Current drawdown from the high-water mark: `(hwm − nav) / hwm × 10000`, floored at 0 |
 | `apyBps` | integer | Annualized `closedTradePnl` over TVL, in basis points |
 | `closedTradePnl` | string | Lifetime PnL from closed leader trades (USDC, 7-decimal) |
@@ -129,7 +129,7 @@ curl -s "https://noetherapi-production.up.railway.app/v1/vaults/12/trades?limit=
       "collateral": "0",
       "ledger": 2849806,
       "ts": 1780260063,
-      "txHash": "e49d…1784",
+      "txHash": "e49dcfae0cc5dcd2943cdbc4929286ca1751dc54be48c88da314e7d2ba9f1784",
       "pnl": "-32835774"
     }
   ]
@@ -177,7 +177,7 @@ curl -s "https://noetherapi-production.up.railway.app/v1/vaults/12/deposits?limi
       "amount": "166156808982",
       "ledger": 2849699,
       "ts": 1780259527,
-      "txHash": "3361…06f4",
+      "txHash": "336145032c3755a2f62a2a4c808e2de05804cefc8a66267965ffe3dd8e2d06f4",
       "shares": "166156808982"
     }
   ]

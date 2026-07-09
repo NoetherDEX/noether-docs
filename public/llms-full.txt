@@ -23,12 +23,12 @@
 
 ## Developers
 
-- [Developer overview](/developers): Noether exposes a public JSON REST API, a WebSocket stream, and TypeScript and Python SDKs — everything the app at https://noether.exchange uses is available to you. This page is the map: base URL, authentication, rate l
+- [Developer overview](/developers): Noether exposes a public JSON REST API, a WebSocket stream, and TypeScript and Python SDKs — the same market data, price feeds, and trading rails that power the app at https://noether.exchange. This page is the map: base
 - [API Explorer](/developers/api-explorer): Browse every REST endpoint interactively — request/response schemas, parameters, and
 - [Authentication](/developers/authentication): The gateway authenticates requests with API keys. You get a key by proving control of a Stellar wallet: request a challenge, sign it with the wallet, and exchange the signed proof for a `keyId` + `secret` pair. This page
 - [Error reference](/developers/errors): Every error you can hit while integrating with Noether, in one place: the HTTP errors the gateway returns, how failed on-chain transactions surface in API responses, and the complete contract error code tables for the ma
 - [Python SDK](/developers/sdk-py): `noether-sdk` on PyPI is the official async Python client for the Noether gateway: REST sub-clients for markets, oracle prices, accounts, order preparation and transaction submission, plus a reconnecting WebSocket client
-- [TypeScript SDK](/developers/sdk-ts): `noether-sdk` is the official TypeScript client for the Noether gateway. It wraps every REST endpoint and the WebSocket stream behind typed sub-clients, and handles API-key issuance, transaction preparation, and submissi
+- [TypeScript SDK](/developers/sdk-ts): `noether-sdk` is the official TypeScript client for the Noether gateway. It wraps the gateway's REST endpoints and the WebSocket stream behind typed sub-clients, and handles API-key issuance, transaction preparation, and
 - [WebSocket API](/developers/websocket): The gateway streams live market data and account events over a single WebSocket endpoint. This page is the full protocol reference: connection, client and server frames, all four channel families, limits, and reconnect b
 
 ## REST API Reference
@@ -68,7 +68,7 @@ Noether is live on the Stellar **testnet**. All funds are test funds — get fre
 
 | | |
 |---|---|
-| Markets | 14 perpetual pairs, including BTC-PERP, ETH-PERP, XLM-PERP, and SOL-PERP |
+| Markets | 14 perpetual pairs, including BTC-PERP, ETH-PERP, XLM-PERP, and SOL-PERP (13 listed in the web app — HYPE is API-only) |
 | Leverage | Up to 10x (25x is planned for mainnet) |
 | Collateral | USDC, with isolated and cross margin modes |
 | Fees | Maker from 0.020%, taker from 0.050% — rates decrease with trading volume |
@@ -79,7 +79,7 @@ Noether is live on the Stellar **testnet**. All funds are test funds — get fre
 
 - **Trade in the browser** at [noether.exchange](https://noether.exchange) with Freighter or LOBSTR (via WalletConnect). There is no exchange account — your wallet signs every transaction.
 - **Build against the gateway**, a REST and WebSocket API that prepares transactions for you to sign locally. It never holds your keys. TypeScript and Python SDKs mirror the full API surface.
-- **The market contract** holds all trading logic; the Liquidity Vault is the counterparty to every trade and pays LPs the fees. Prices come from the Noeracle oracle, relayed atomically at trade time by the Noether Router so trades always execute against a fresh signed price.
+- **The market contract** holds all trading logic; the Liquidity Vault is the counterparty to every trade, and trading fees accrue to the vault — LPs earn them through the value of their NOE shares. Prices come from the Noeracle oracle: in-app trades go through the Noether Router, which relays a fresh signed price and executes the trade in one atomic transaction, and the market rejects any price older than 60 seconds.
 
 ## Where to start
 
@@ -213,7 +213,7 @@ Two things are gated behind a wallet allowlist right now:
 - **API key issuance** — the api-keys page (and the gateway's key-issuance endpoint) only serves allowlisted wallets. Non-allowlisted wallets see "Your wallet is not on the allowlist yet".
 - **Referral analytics dashboard** — the "Advanced — full dashboard" section of the referrals page requires the same allowlist.
 
-Everything else is open: trading in the app, the Liquidity Vault, Trader Vaults, the faucet, the leaderboard, referral code creation and binding, and all public read-only API endpoints. To request access, DM [@Noetherdex on X](https://x.com/Noetherdex) or join the Discord with your wallet address — allowlisting typically takes about a day.
+Everything else is open: trading in the app, the Liquidity Vault, Trader Vaults, the faucet, the leaderboard, referral code binding, and all public read-only API endpoints. Referral code **creation** is open too, though it can be switched to invite-only during the beta — if it is, the referrals page shows "Referral codes are invite-only right now". To request access, DM [@Noetherdex on X](https://x.com/Noetherdex) or join the Discord with your wallet address — allowlisting typically takes about a day.
 
 ### I bound a referral code — where is my 4% discount?
 
@@ -235,7 +235,7 @@ Mainnet is **planned**, with no announced date. Planned mainnet changes include 
 
 ### Where do I report bugs?
 
-Open an issue on GitHub at [NoetherDEX/noether](https://github.com/NoetherDEX/noether/issues), or use the feedback button in the bottom corner of the app. For anything security-sensitive, contact the team privately first via [@Noetherdex on X](https://x.com/Noetherdex) rather than filing a public issue.
+Open an issue on GitHub at [NoetherDEX/noether](https://github.com/NoetherDEX/noether/issues), or use the feedback button in the bottom-right corner of the app. For anything security-sensitive, do **not** file a public issue — email **security@noether.exchange** (or DM [@Noetherdex on X](https://x.com/Noetherdex)) per the project's security policy.
 
 
 <!-- PAGE: /guides/getting-started -->
@@ -281,7 +281,7 @@ A brand-new Stellar account doesn't exist on the network until it holds some XLM
 2. If your account is new, the page shows **Wallet Not Active** with an **Activate Wallet** button.
 3. Click it. The app asks Stellar's public friendbot service to create and fund your account with testnet XLM — no signature needed. You'll see a "Wallet activated successfully!" confirmation.
 
-If your account was already funded (for example by another faucet), this step is treated as already done.
+If your account was already funded (for example by another faucet), the page skips this state entirely and goes straight to the trustline step.
 
 <Callout type="info">
 XLM pays network fees for every transaction you sign. Keep at least **1 XLM** in the account — the app shows a red "Low" tag on your XLM balance when it drops below that.
@@ -366,7 +366,7 @@ Go to **Referrals** in the top navigation on [noether.exchange](https://noether.
 
 ### Pick a code
 
-In the **"Register your referral code"** card, enter a code of **3–16 characters** using letters, numbers, underscores, and hyphens (`A–Z a–z 0–9 _ -`). Codes are **case-sensitive**. The page checks availability against the chain as you finish typing — you'll see "available" or "already taken" before you submit.
+In the **"Register your referral code"** card, enter a code of **3–16 characters** using letters, numbers, underscores, and hyphens (`A–Z a–z 0–9 _ -`). Codes are **case-sensitive**. When you click away from the field, the page checks availability against the chain — you'll see "✓ available" or "already taken" before you submit.
 
 ### Sign the transaction
 
@@ -457,7 +457,7 @@ Trader Vaults are separate from the protocol's [Liquidity Vault](/guides/vault).
 | Parameter | Value | Notes |
 |---|---|---|
 | Leader profit share | 10% | Only on gains above the high-water mark |
-| Leader minimum holding | 5% of vault shares | Enforced on-chain after every deposit, withdrawal, and leader trade |
+| Leader minimum holding | 5% of vault shares | Enforced on-chain after every deposit, withdrawal, and every position the leader opens |
 | Max outside capital | 19x the leader's own stake | Direct consequence of the 5% rule |
 | Vault deposit / withdrawal fee | None | Trading fees still apply to the leader's trades |
 | Share pricing | Liquid NAV | First deposit: 1 USDC = 1 share |
@@ -550,7 +550,7 @@ The 5% rule is enforced on-chain after every deposit, withdrawal, and every posi
 
 There are two ways to trade vault funds. Both require the vault to be unpaused and the connected wallet to be the leader.
 
-**Manage page** — from the detail page of a vault you lead, open the manage view. It has three cards:
+**Manage page** — a dedicated leader console at `/vaults/{id}/manage` (append `/manage` to your vault's URL — there is no button for it in the app yet; non-leaders see a "Leader-only page" notice). It has three cards:
 
 - **Open position** — pick an asset (**BTC, ETH, or XLM only** in this panel — a current limitation; the full pair list is available in leader mode on the trade page), choose Long or Short, enter collateral in USDC, and set leverage with the 1–10x slider (default 2x). One signature opens the position with the vault's USDC.
 - **Close position** — enter the position id and sign once.
@@ -642,7 +642,7 @@ A two-phase entry order: when the price reaches your **stop price**, a limit ord
 These attach to an **existing position** rather than opening a new one:
 
 - **Stop-loss** closes the position when the price moves against you to the trigger (below entry for longs, above for shorts). The modal offers quick-set buttons (−2% / −5% / −10% from entry for longs) and previews the estimated loss at trigger.
-- **Take-profit** closes the position when the price moves in your favor to the trigger (above entry for longs, below for shorts). You can optionally add a **limit price** to make it a *take-limit* — execution then references your limit price instead of the trigger. Leave the limit empty for market execution at trigger.
+- **Take-profit** closes the position when the price moves in your favor to the trigger (above entry for longs, below for shorts). You can optionally add a **limit price** to make it a *take-limit* — execution then references your limit price instead of the trigger (the limit must lie between your entry price and the trigger, or the contract rejects it). Leave the limit empty for market execution at trigger.
 
 A position can hold at most one stop-loss and one take-profit at a time. Neither locks extra collateral. When the position closes for any reason — manual close, the other trigger firing, or liquidation — any remaining attached orders are cancelled automatically.
 
@@ -656,11 +656,11 @@ A stop-loss that follows the price. Pick an open isolated position and a trailin
 
 ### Reduce-only
 
-A checkbox on limit and stop-limit orders. A reduce-only order **can only shrink your exposure — it can never open or grow a position**. At execution it finds your largest opposing isolated position in the same asset that fits inside the order's size, refunds the order's escrowed collateral, and closes that position. If no suitable opposing position exists (say it was already closed), the order cancels itself instead of opening an unwanted new position. Use it for exits you place in advance, when you want a guarantee that a stale order can't flip you into a fresh trade.
+A checkbox in the Limit tab's order settings (the contract also accepts the flag on stop-limit orders, but the Stop Limit tab does not currently expose it). A reduce-only order **can only shrink your exposure — it can never open or grow a position**. At execution it finds your largest opposing isolated position in the same asset that fits inside the order's size, refunds the order's escrowed collateral, and closes that position. If no suitable opposing position exists (say it was already closed), the order cancels itself instead of opening an unwanted new position. Use it for exits you place in advance, when you want a guarantee that a stale order can't flip you into a fresh trade.
 
 ## Time-in-force
 
-Limit and stop-limit orders take a time-in-force setting:
+Limit orders take a time-in-force setting, chosen in the Limit tab's order settings:
 
 | Mode | Behavior | Use when |
 |---|---|---|
@@ -668,7 +668,7 @@ Limit and stop-limit orders take a time-in-force setting:
 | **IOC** (Immediate Or Cancel) | Fills now if the trigger condition is already met, otherwise cancels instantly and refunds collateral | You want the price now or not at all |
 | **Post Only** | Rejected at placement if it would fill immediately — guarantees you are the maker | You specifically want the maker fee rate |
 
-For stop-limit orders, IOC and Post Only apply to the limit phase (after the stop triggers), not to the stop itself.
+Stop-limit orders also carry a time-in-force at the contract level — there, IOC and Post Only apply to the limit phase (after the stop triggers), not to the stop itself — but the Stop Limit tab does not currently expose the selector.
 
 ## Margin modes
 
@@ -710,9 +710,9 @@ Noether charges a trading fee **only when a position opens** — deducted from y
 | Tier | 14-day rolling volume | Maker | Taker |
 |---|---|---|---|
 | Base | $0 | 0.020% | 0.050% |
-| Tier 1 | over $20,000 | 0.015% | 0.040% |
-| Tier 2 | over $50,000 | 0.010% | 0.030% |
-| Tier 3 | over $100,000 | 0.005% | 0.020% |
+| Tier 1 | ≥ $20,000 | 0.015% | 0.040% |
+| Tier 2 | ≥ $50,000 | 0.010% | 0.030% |
+| Tier 3 | ≥ $100,000 | 0.005% | 0.020% |
 
 (These thresholds are testnet values, lowered for testing; mainnet plans use $1M / $5M / $25M.)
 
@@ -885,7 +885,7 @@ Both fees are read live from the contract on the vault page (they display as "�
 
 What limits the downside:
 
-- **The insurance buffer pays first.** The protocol maintains a separate buffer of first-loss capital that sits outside the NOE price. When a winning trader is paid out, the buffer is drained before LP funds are touched.
+- **An insurance buffer pays first.** The vault has a separate buffer of first-loss capital that sits outside the NOE price: when a winning trader is paid out, the buffer is drained before LP funds are touched. (On the current testnet deployment this buffer hasn't been seeded yet, so today the caps below do the real work.)
 - **Open-interest caps bound exposure.** Every new position reserves its full potential payout in the vault. Open interest in any single asset, per side (long or short), is capped at about **25% of vault assets**, and total reservations across all assets are capped at **70% of vault assets**. Opens that would breach a cap are rejected, so the vault can never be fully committed to one market — or to trades in aggregate.
 - **Accounting follows real money.** The pool is credited only for USDC that actually arrives, and a trader's loss on an isolated position can never exceed that position's own collateral.
 
@@ -906,7 +906,7 @@ Questions about anything here? Check the [FAQ](/guides/faq), or dig into the mec
 
 # Developer overview
 
-Noether exposes a public JSON REST API, a WebSocket stream, and TypeScript and Python SDKs — everything the app at [https://noether.exchange](https://noether.exchange) uses is available to you. This page is the map: base URL, authentication, rate limits, regional restrictions, and where each piece of the reference lives.
+Noether exposes a public JSON REST API, a WebSocket stream, and TypeScript and Python SDKs — the same market data, price feeds, and trading rails that power the app at [https://noether.exchange](https://noether.exchange). This page is the map: base URL, authentication, rate limits, regional restrictions, and where each piece of the reference lives.
 
 <Callout type="info">
 **Base URL:** `https://noetherapi-production.up.railway.app` — all endpoints are under the `/v1` prefix (for example `GET /v1/markets`). The WebSocket endpoint is `wss://noetherapi-production.up.railway.app/v1/ws`. If you have seen `api.noether.exchange` in older materials, do not use it — that hostname does not resolve yet.
@@ -916,12 +916,12 @@ Noether exposes a public JSON REST API, a WebSocket stream, and TypeScript and P
 The live deployment runs on the Stellar **testnet** with test funds. Mainnet is planned but not live; nothing you trade here has real-money value.
 </Callout>
 
-Interactive Swagger UI is served by the gateway itself at [https://noetherapi-production.up.railway.app/docs](https://noetherapi-production.up.railway.app/docs) (OpenAPI JSON at `/docs/json`). Note that the `servers` field inside the served spec is currently a placeholder — always use the Railway base URL above.
+Interactive Swagger UI is served by the gateway itself at [https://noetherapi-production.up.railway.app/docs](https://noetherapi-production.up.railway.app/docs) (OpenAPI JSON at `/docs/json`). Note that the `servers` field inside the served spec is currently a placeholder (`http://localhost:4000`) — always use the Railway base URL above.
 
 ## What you can build
 
 - **Read market data** — 14 markets with live oracle prices (`/v1/markets`, `/v1/oracle/prices`), OHLC candles (`/v1/candles`), per-asset open interest and 24h volume (`/v1/markets/stats`), recent trades, and a trader leaderboard. All of this is public, no key required.
-- **Trade programmatically** — a non-custodial prepare → sign → submit flow: `POST /v1/orders/prepare` returns an unsigned Soroban transaction XDR for your account, you sign it locally with your own key, and `POST /v1/tx/submit` broadcasts it and polls to a final status. The gateway never holds private keys. See [Trading endpoints](/developers/rest-api/trading).
+- **Trade programmatically** — a non-custodial prepare → sign → submit flow: `POST /v1/orders/prepare` returns an unsigned Soroban transaction XDR for your account, you sign it locally with your own key, and `POST /v1/tx/submit` broadcasts it and polls for the result (returning `PENDING` if it is not final within the poll window). The gateway never holds private keys. See [Trading endpoints](/developers/rest-api/trading).
 - **Stream in real time** — WebSocket channels for oracle prices (`ticker.BTC` and the other 13 assets), trade prints (`trades.BTC`), a public event firehose (`events`), and an authenticated per-account event stream. See [WebSocket](/developers/websocket).
 - **Query the ecosystem** — Trader Vault marketplace data (`/v1/vaults`), referral codes and earnings (`/v1/referral/lookup`, `/v1/referral/info`), open positions, and raw decoded contract events.
 
@@ -991,7 +991,7 @@ REST reference by area:
 
 ## Conventions you will see everywhere
 
-- **Precision:** money, price, and size fields are strings holding 7-decimal fixed-point integers (`10_000_000` = 1.0, so `"100000000"` = 10 USDC and `"632824877778"` = $63,282.4877778). Some payloads add a pre-converted `priceFloat` for convenience.
+- **Precision:** money, price, and size fields are strings holding 7-decimal fixed-point integers (`10_000_000` = 1.0, so `"100000000"` = 10 USDC and `"632824877778"` = $63,282.4877778). Some payloads add a pre-converted `priceFloat` for convenience; candle OHLC values are the one exception — they are plain floats.
 - **Timestamps:** most on-chain-derived fields (`ts`, `timestamp`, `openedAt`) are unix seconds; gateway-side fields such as key `createdAt` are millisecond epochs. Each reference page marks the unit.
 - **Direction:** request bodies use the strings `"Long"` and `"Short"`; projection payloads encode direction as an integer, `0` = long and `1` = short.
 - **Pagination:** cursor style via `before_ts` plus `limit`, newest-first (candles are the exception: oldest-first). No page tokens or total counts.
@@ -1453,7 +1453,7 @@ The trading endpoints (`/v1/orders*` and `/v1/tx*`) can be geo-restricted. When 
 }
 ```
 
-This response is configuration-dependent — treat it as a possible response on the trading endpoints and handle it terminally (do not retry). Read-only endpoints, authentication, and `/v1/health` are never geo-restricted.
+This response is configuration-dependent — treat it as a possible response on the trading endpoints and handle it terminally (do not retry). Read-only endpoints, authentication, and `/v1/health` are outside the geo-guarded surface and are not geo-restricted.
 
 ### 5xx — upstream failures
 
@@ -1495,7 +1495,7 @@ A transaction rejected before inclusion returns `400 submission_rejected` with t
 
 Two things to know when decoding:
 
-- The gateway's decode map mirrors the shared `NoetherError` table below. A code it does not recognize decodes as `"UnknownContractError"` with the raw code preserved.
+- The gateway's decode map mirrors the shared `NoetherError` table below, with one gap: code 43 (`DepositCapExceeded`) is missing from the gateway's map today. It — like any code the gateway does not recognize — decodes as `"UnknownContractError"` with the raw code preserved, so match on `code`, not `name`.
 - Each contract has its own code space. `NoetherError` covers the market contract (and the shared vault, oracle shim, and router errors). Trader Vault (`FactoryError`) and referral (`ReferralError`) codes overlap numerically with the low `NoetherError` codes — disambiguate by which contract your transaction invoked.
 
 <Callout type="info">
@@ -1861,7 +1861,7 @@ All methods are coroutines. "Auth" means the client must be constructed with `Cr
 | `tx` | `submit(signed_xdr=, poll_timeout_ms=None)` | yes | `SubmittedTx` (`.hash`, `.status`, `.ledger`) |
 | `vaults` | `list(leader=, limit=)` | no | `list[VaultRow]` |
 | `vaults` | `get(vault_id)` | no | `VaultRow` **or `None` on unknown id** |
-| `vaults` | `deposits(id, limit=)` / `withdraws(id, limit=)` / `fee_claims(id)` | no | `list[VaultActivityRow]` |
+| `vaults` | `deposits(id, limit=)` / `withdraws(id, limit=)` / `fee_claims(id, limit=)` | no | `list[VaultActivityRow]` |
 | `referral` | `lookup_code(code)` | no | `ReferrerRow` or `None` |
 | `referral` | `me()` | yes | `ReferralMeResponse` |
 | `referral` | `trades(limit=)` / `claims(limit=)` | yes | referral trade / claim rows |
@@ -1914,7 +1914,7 @@ Gateway error bodies and rate limits are documented on the [errors page](/develo
 
 # TypeScript SDK
 
-`noether-sdk` is the official TypeScript client for the Noether gateway. It wraps every REST endpoint and the WebSocket stream behind typed sub-clients, and handles API-key issuance, transaction preparation, and submission. This page documents the published version **0.1.1** ([npm](https://www.npmjs.com/package/noether-sdk)).
+`noether-sdk` is the official TypeScript client for the Noether gateway. It wraps the gateway's REST endpoints and the WebSocket stream behind typed sub-clients, and handles API-key issuance, transaction preparation, and submission. This page documents the published version **0.1.1** ([npm](https://www.npmjs.com/package/noether-sdk)).
 
 <Callout type="info">
   The live deployment runs on the Stellar **testnet** with test funds. All snippets below point at the production gateway `https://noetherapi-production.up.railway.app`.
@@ -2139,7 +2139,7 @@ Behavior:
 
 ## Error classes
 
-All error classes are exported from the package root. Hierarchy: `NoetherError` → `ApiError` → the specific classes.
+All error classes are exported from the package root. Hierarchy: the HTTP classes extend `NoetherError` → `ApiError`; `NetworkError` extends `NoetherError` directly (it never has an HTTP status).
 
 | Class | Triggered by |
 |---|---|
@@ -2240,7 +2240,7 @@ There are exactly four channel families. Any channel name that doesn't match one
 
 ### `events` — public event firehose
 
-Every decoded contract event, in ledger order. Data is sourced from the indexer, which the gateway polls every second — expect roughly one to a few seconds of latency behind the chain.
+Every decoded contract event, delivered in the order the indexer recorded it (normally ledger order). Data is sourced from the indexer, which the gateway polls every second — expect roughly one to a few seconds of latency behind the chain.
 
 ```json
 {
@@ -2473,7 +2473,7 @@ Each endpoint in the reference is marked with one of two badges:
 | **Public** | No credentials. Rate-limited per IP. |
 | **API key** | Requires `Authorization: Bearer <keyId>:<secret>`. Rate-limited per key. |
 
-API keys are issued through a wallet-signed challenge and are currently gated to a closed-beta allowlist — the full flow, header format, and optional `X-Timestamp` replay protection are on [/developers/authentication](/developers/authentication). All market data, prices, events, vaults lists, and referral lookups are public; account data, order preparation, transaction submission, and key management require a key.
+API keys are issued through a wallet-signed challenge and are currently gated to a closed-beta allowlist — the full flow, header format, and optional `X-Timestamp` replay protection are on [/developers/authentication](/developers/authentication). All market data, prices, events, vaults lists, and referral lookups are public — as is `GET /v1/account/volume`, despite its path; the other account endpoints, order preparation, transaction submission, and key listing/revocation require a key.
 
 ## Common conventions
 
@@ -2644,7 +2644,7 @@ The response is `{"events":[ ... ]}` where each row is:
 
 | Field | Type | Description |
 |---|---|---|
-| `eventId` | string | Unique event id, stable sort key |
+| `eventId` | string | Unique event id (rows are ordered by ledger, then event id, descending) |
 | `contractId` | string | Emitting contract address |
 | `topic` | string | Event topic, e.g. `position_opened`, `order_cancelled` |
 | `ledger` | integer | Ledger sequence |
@@ -2729,7 +2729,7 @@ curl -s "https://noetherapi-production.up.railway.app/v1/account/volume?address=
 
 ## Data freshness
 
-Everything on this page except `/v1/account/me` is served from indexer projections, not live chain reads, so it can lag behind the chain. Check `GET /v1/health` and read `indexer.ledgerAgeSeconds` to see how far behind the read side is. Endpoints whose projection tables are empty return empty arrays (`{"events":[]}`) rather than errors.
+Everything on this page except `/v1/account/me` is served from indexer projections, not live chain reads, so it can lag behind the chain. Check `GET /v1/health` and read `indexer.ledgerAgeSeconds` to see how far behind the read side is. Endpoints whose projection tables are missing or empty return empty arrays (`{"events":[]}`) rather than errors.
 
 ## Next steps
 
@@ -3007,9 +3007,9 @@ Every price object has the same shape:
 | `asset` | string | Asset symbol, e.g. `BTC` |
 | `price` | string | Price as a 7-decimal fixed-point integer, serialized as a string. Divide by 10,000,000 to get dollars: `"632824877778"` = $63,282.4877778 |
 | `priceFloat` | number | The same price pre-converted to a float, for convenience |
-| `timestamp` | integer | Unix seconds — when this price was attested on-chain |
+| `timestamp` | integer | Unix seconds — the attestation time of the price currently stored on-chain |
 
-Use the `price` string when you need exact math (it round-trips the on-chain integer value losslessly); use `priceFloat` for display. This 7-decimal string convention applies to all money, price, and size fields across the API.
+Use the `price` string when you need exact math (it round-trips the on-chain integer value losslessly); use `priceFloat` for display. This 7-decimal string convention applies to money, price, and size fields across the API — the one exception is candle OHLC values, which are plain floats.
 
 ## `GET /v1/oracle/prices`
 
@@ -3042,7 +3042,7 @@ Returns the current oracle price for a single asset.
 
 | Parameter | In | Type | Notes |
 |---|---|---|---|
-| `asset` | path | string | Asset symbol, e.g. `BTC`. Validated against the supported list — unknown symbols return 404 |
+| `asset` | path | string | Asset symbol, e.g. `BTC`. Case-insensitive (uppercased server-side). Validated against the supported list — unknown symbols return 404 |
 
 ```bash
 curl -s https://noetherapi-production.up.railway.app/v1/markets/BTC/price
@@ -3064,12 +3064,12 @@ The same price object is also embedded in `GET /v1/markets` and `GET /v1/markets
 
 ## Staleness semantics
 
-The `timestamp` field is the attestation time of the price currently stored on-chain, not the time of your HTTP request. Under normal operation the keeper pushes fresh signed prices roughly every 30 seconds, so the timestamp is usually well under a minute old.
+The `timestamp` field is the attestation time of the price currently stored on-chain, not the time of your HTTP request. Under normal operation the keeper pushes fresh signed prices every 30 seconds (its default cadence), so the timestamp is usually well under a minute old.
 
 Two things to know when consuming it:
 
 - **The gateway never rejects a stale price on these read endpoints.** It returns whatever the shim last stored, with its timestamp. If you need a freshness guarantee, compare `timestamp` against your own clock.
-- **The chain enforces freshness for trading.** The market contract rejects risk-increasing operations (opening positions, executing entry orders) when the on-chain price is older than 60 seconds, returning contract error 30 (`PriceStale`). Risk-reducing operations — closes and liquidations — are never blocked by staleness. Trades placed through the app or the API's prepare/submit flow relay a fresh signed price in the same transaction, so in practice they don't hit this limit. Details in [Oracle & price feeds](/protocol/oracle).
+- **The chain enforces freshness for trading.** The market contract rejects risk-increasing operations (opening positions, executing entry orders) when the on-chain price is older than 60 seconds, returning contract error 30 (`PriceStale`). Risk-reducing operations — closes and liquidations — are never blocked by staleness. Trades placed through the web app go through the Noether Router, which relays a fresh signed price in the same transaction, so they can't hit this limit. Transactions built by the API's prepare/submit flow call the market contract directly and rely on the keeper's regular price pushes instead — if the on-chain price has gone stale, a submit can fail with error 30. Details in [Oracle & price feeds](/protocol/oracle).
 
 Allow up to 3 seconds of additional lag from the gateway's per-asset cache.
 
@@ -3110,7 +3110,7 @@ Returns positions that have been opened and not yet closed or liquidated. Positi
 |---|---|---|---|
 | `trader` | string | no | Stellar address to filter by. Returns only that trader's open positions. |
 
-There is no `limit` parameter. The response is hard-capped at **200 rows** for the venue-wide query and **500 rows** when filtered by `trader`.
+Rows are returned newest-first (ordered by `openedAt` descending). There is no `limit` parameter. The response is hard-capped at **200 rows** for the venue-wide query and **500 rows** when filtered by `trader`.
 
 ### Example request
 
@@ -3197,12 +3197,12 @@ Authenticated endpoints take the standard header `Authorization: Bearer <keyId>:
 |---|---|---|
 | `referrer` | string | Stellar address that owns the code |
 | `code` | string | The referral code (3–16 characters, case-sensitive) |
-| `createdAt` | integer | Code creation time, unix seconds |
+| `createdAt` | integer | Code creation time (ledger close), unix seconds |
 | `referredCount` | integer | Number of wallets bound to this code |
 | `totalVolumeGenerated` | string | Cumulative **fee amounts** from referred trades, 7-decimal USDC — see the note below |
 | `totalEarned` | string | Lifetime referrer share earned, 7-decimal USDC |
 | `claimable` | string | Currently claimable referrer share, 7-decimal USDC |
-| `updatedAt` | integer | Last update time |
+| `updatedAt` | integer | Last update time, **milliseconds** epoch — note the unit differs from `createdAt` (seconds) |
 
 <Callout type="warning">
 **`totalVolumeGenerated` is not notional volume.** Despite the name, this field accumulates the *fee amounts* of referred trades, not their notional size. A referred $10,000 trade that paid a $5.00 taker fee adds `"50000000"` (5.00 USDC) to this field, not `"100000000000"`. Until v1.1 activates trade recording, it stays `"0"`.
@@ -3269,7 +3269,7 @@ Response shape: `self` is a referrer row, `binding` is a binding row or `null`.
 }
 ```
 
-A binding row has the fields `referee`, `referrer`, `code`, `boundAt`, and `txHash`. Bindings are permanent — a referee can bind to a code once and cannot rebind.
+A binding row has the fields `referee`, `referrer`, `code`, `boundAt` (unix seconds), and `txHash`. Bindings are permanent — a referee can bind to a code once and cannot rebind.
 
 If the address never registered a code, the endpoint returns 404:
 
@@ -3451,7 +3451,7 @@ Returns `{"revoked": true}` on success, or `404 {"error":"key_not_found"}` when 
 
 ## `GET /v1/events` — raw contract events
 
-Public. Returns decoded on-chain contract events from the indexer, newest first. This is the same data that streams live on the WebSocket `events` channel — see [WebSocket](/developers/websocket).
+Public. Returns decoded on-chain contract events from the indexer, newest first. The same underlying event rows also stream live (framed slightly differently) on the WebSocket `events` channel — see [WebSocket](/developers/websocket).
 
 | Query param | Type | Notes |
 |---|---|---|
@@ -3485,7 +3485,7 @@ curl -s "https://noetherapi-production.up.railway.app/v1/events?topic=funding_ap
 }
 ```
 
-`ledgerCloseTs` is unix seconds; `insertedAt` is a millisecond epoch. `payload` is the decoded event body and its shape varies per topic. Market topics include `position_opened`, `position_closed`, `position_liquidated`, `order_placed`, `order_executed`, `order_cancelled`, and `funding_applied`; vault and referral contracts emit their own topics. The exact on-chain event tuples behind these payloads are documented in [Contracts](/protocol/contracts).
+`ledgerCloseTs` is unix seconds; `insertedAt` is a millisecond epoch. The event log preserves history across contract redeployments, so `contractId` may reference a contract from an earlier deployment (as in this real captured sample) — pass the `contract` filter if you only want events from the currently deployed contracts (see `/v1/health`). `payload` is the decoded event body and its shape varies per topic. Market topics include `position_opened`, `position_closed`, `position_liquidated`, `order_placed`, `order_executed`, `order_cancelled`, and `funding_applied`; vault and referral contracts emit their own topics. The exact on-chain event tuples behind these payloads are documented in [Contracts](/protocol/contracts).
 
 ## `GET /v1/health` — liveness and configuration probe
 
@@ -3524,7 +3524,7 @@ curl -s https://noetherapi-production.up.railway.app/v1/health
 | `indexer.lastUpdatedAt` | Millisecond epoch of the last indexer write |
 | `indexer.ledgerAgeSeconds` | How far the indexer read-side lags behind now |
 
-Endpoints backed by indexer projections (`/v1/events`, `/v1/trades`, `/v1/leaderboard`, `/v1/positions/open`, and others) can lag behind the chain; live oracle price endpoints do not. Before relying on projection data, check `indexer.ledgerAgeSeconds` here. On a fresh deployment with no indexed data yet, the `indexer` fields are `null`.
+Endpoints backed by indexer projections (`/v1/events`, `/v1/trades`, `/v1/leaderboard`, `/v1/positions/open`, and others) can lag behind the chain; live oracle price endpoints do not. Before relying on projection data, check `indexer.ledgerAgeSeconds` here — the real captured sample above shows a heavily lagging indexer (`ledgerAgeSeconds` ≈ 32 days), which is exactly the condition this field exists to expose. On a fresh deployment with no indexed data yet, the `indexer` fields are `null`.
 
 ## Next steps
 
@@ -3724,7 +3724,7 @@ If you get `{"status":"PENDING", …}`, resubmit the same signed XDR to keep pol
 
 ### Confirm the result
 
-Read your position back with [`GET /v1/account/me/positions`](/developers/rest-api/positions), or stream fills live over the [WebSocket API](/developers/websocket).
+Read your position back with [`GET /v1/account/me/positions`](/developers/rest-api/account), or stream fills live over the [WebSocket API](/developers/websocket).
 
 </Steps>
 
@@ -3814,7 +3814,7 @@ curl -s "https://noetherapi-production.up.railway.app/v1/vaults?limit=1"
 | `updatedAt` | integer | Last projection update, **milliseconds** since epoch |
 | `depositorCount` | integer | Distinct depositors |
 | `openPositions` | integer | Currently open leader positions |
-| `tradeCount` | integer | Lifetime leader trades |
+| `tradeCount` | integer | Lifetime leader trades (counts position opens) |
 | `drawdownBps` | integer | Current drawdown from the high-water mark: `(hwm − nav) / hwm × 10000`, floored at 0 |
 | `apyBps` | integer | Annualized `closedTradePnl` over TVL, in basis points |
 | `closedTradePnl` | string | Lifetime PnL from closed leader trades (USDC, 7-decimal) |
@@ -3871,7 +3871,7 @@ curl -s "https://noetherapi-production.up.railway.app/v1/vaults/12/trades?limit=
       "collateral": "0",
       "ledger": 2849806,
       "ts": 1780260063,
-      "txHash": "e49d…1784",
+      "txHash": "e49dcfae0cc5dcd2943cdbc4929286ca1751dc54be48c88da314e7d2ba9f1784",
       "pnl": "-32835774"
     }
   ]
@@ -3919,7 +3919,7 @@ curl -s "https://noetherapi-production.up.railway.app/v1/vaults/12/deposits?limi
       "amount": "166156808982",
       "ledger": 2849699,
       "ts": 1780259527,
-      "txHash": "3361…06f4",
+      "txHash": "336145032c3755a2f62a2a4c808e2de05804cefc8a66267965ffe3dd8e2d06f4",
       "shares": "166156808982"
     }
   ]
@@ -4015,7 +4015,7 @@ Noether is a fully on-chain perpetual futures exchange on Stellar: every positio
 
 Three things to notice:
 
-1. **Prices are pulled, not pushed on a fixed schedule alone.** The keeper keeps the on-chain price fresh in the background (about every 30 seconds), and the Noether Router additionally relays a sub-second-fresh signed attestation *inside the same transaction* as your trade — so a trade can never fail the market's 60-second staleness check. Details in [/protocol/oracle](/protocol/oracle).
+1. **Prices are pulled, not pushed on a fixed schedule alone.** The keeper keeps the on-chain price fresh in the background (about every 30 seconds), and the Noether Router additionally relays a freshly fetched signed attestation *inside the same transaction* as your trade — so a trade can never fail the market's 60-second staleness check. Details in [/protocol/oracle](/protocol/oracle).
 2. **The Liquidity Vault is the counterparty to every trade.** The market never holds LP funds itself; it reserves potential payouts at open and settles PnL against the vault at close.
 3. **Reads are split by freshness needs.** Prices come straight from the chain (via the shim); histories, leaderboards, and open-position lists come from indexer projections rebuilt from contract events.
 
@@ -4045,7 +4045,7 @@ Powers **Trader Vaults** — user-created copy-trading vaults, distinct from the
 
 ### Referral
 
-The on-chain referral system: register a code, bind a referee to a referrer, record trades (callable only by the market address), and claim accrued rewards. The economics are a 4% fee discount for referees and a 10% fee share for referrers. Today the deployed market does not yet invoke the referral discount hook on-chain; the API gateway applies the referee discount off-chain in its fee calculation, so contract events and user-visible fees can diverge slightly for referred wallets until the on-chain hook ships. See [/guides/referrals](/guides/referrals).
+The on-chain referral system: register a code, bind a referee to a referrer, record trades (an entry point callable only by the market address), and claim accrued rewards. Code registration and referee binding are live today; the economics — a 4% fee discount for referees, a 10% fee share for referrers, and reward claims — activate in v1.1. The `record_trade` hook is gated to the market address, and the currently deployed market does not call it yet, so no discount or fee share accrues today. See [/guides/referrals](/guides/referrals).
 
 <Callout type="info">
   A seventh contract sits underneath all of this: **Noeracle**, the signed price source. It's a
@@ -4070,7 +4070,7 @@ Turns contract events into queryable data. It polls Soroban `getEvents` every 2 
 
 ### Keeper bot
 
-The chain's heartbeat — an autonomous service that keeps the protocol live. On its background schedule it fetches the latest signed Noeracle round and relays an attestation on-chain for every pair **about every 30 seconds**, which keeps prices comfortably inside the market's 60-second staleness window. On a faster **5-second cycle** it snapshots all positions and orders, then calls the market directly (not through the router) to liquidate under-margined positions and cross accounts, execute triggered orders, and update trailing-stop peaks — each candidate is simulated first and submitted only when the simulation succeeds, so on-chain state is always the final arbiter. It applies the hourly funding rate on schedule and extends contract storage lifetimes every 6 hours. Before any price push it runs its own defenses: absolute sanity bands, a per-push jump bound, and a cross-check against an independent reference feed.
+The chain's heartbeat — an autonomous service that keeps the protocol live. On its background schedule it fetches the latest signed Noeracle round and relays an attestation on-chain for every pair **about every 30 seconds**, which keeps prices inside the market's 60-second staleness window (a full pass over all 14 pairs takes time, so the router's in-transaction relay — not the background push — is what guarantees freshness at trade time). On a faster **5-second cycle** it snapshots all positions and orders, then calls the market directly (not through the router) to liquidate under-margined positions and cross accounts, execute triggered orders, and update trailing-stop peaks — each candidate is simulated first and submitted only when the simulation succeeds, so on-chain state is always the final arbiter. It applies the hourly funding rate on schedule and extends contract storage lifetimes every 6 hours. Before any price push it runs its own defenses: absolute sanity bands, a per-push jump bound, and a cross-check against an independent reference feed.
 
 ## Life of a trade
 
@@ -4080,7 +4080,7 @@ Putting the pieces together, here is what happens when you open a market positio
 2. **Build and sign one transaction.** The app assembles a single router call — `open_with_price(trader, asset, collateral, leverage, direction, price, timestamp, round_id, pubkeys, sigs)` — and your wallet signs it. You authorize the entire call tree with that one signature.
 3. **Router verification.** On-chain, the router checks every supplied publisher key against its stored allowlist (a foreign or empty key set fails with `Unauthorized`, error #3) and checks the price against a coarse per-asset sanity band (a garbage price fails with `InvalidPrice`, error #31, even if the signature is valid).
 4. **Price relay.** The router relays the verified attestation into Noeracle's persistent on-chain storage — the exact slot the shim reads.
-5. **Market execution.** In the same transaction, the router invokes the market's `open_position`. The market reads the price back through the shim; because the relay just happened, the price is sub-second fresh and cannot fail the 60-second staleness check. Risk-increasing paths like opens also enforce a 1% deviation band against the last good price.
+5. **Market execution.** In the same transaction, the router invokes the market's `open_position`. The market reads the price back through the shim; because the relay just happened, the price is only seconds old and cannot fail the 60-second staleness check. Risk-increasing paths like opens also enforce a 1% deviation band against the last good price.
 6. **Vault reservation.** The market calls the Liquidity Vault to reserve the position's maximum payout. If the reservation would push aggregate reserves past 70% of AUM, or the pair's per-side open interest past 25% of AUM, the open fails with `OpenInterestCapExceeded` (error #82).
 7. **Event emission.** The position is stored and a `position_opened` event is emitted with the position ID, trader, asset, direction, size, and entry price.
 8. **Indexing.** Within a couple of seconds the indexer's poll picks up the event and upserts the open-positions projection — the position now appears in `GET /v1/positions/open` and on the WebSocket event channels.
@@ -4105,7 +4105,7 @@ The gateway mixes two data sources: direct chain reads (always current) and inde
 | `GET /v1/candles` | `candles` projection | Built from Noeracle HTTP polling, not chain events; Binance fallback; response carries a `source` field (`"noeracle"` or `"binance"`) |
 | `GET /v1/events` | `events_raw` projection | Raw contract event archive, filterable by topic, contract, ledger, timestamp |
 | `GET /v1/positions/open` | `positions` projection | Upserted on open, deleted on close/liquidation; reconciled against contract reads |
-| `GET /v1/trades` | `trades` projection | Realized closes and liquidations, joined to their opens; WS `trades.<ASSET>` streams the same |
+| `GET /v1/trades` | `trades` projection | Realized closes and liquidations, joined to their opens; WS `trades.<ASSET>` streams a lighter real-time feed (opens, closes, and liquidations) |
 | `GET /v1/leaderboard` | `trades` projection (aggregated) | Sort by `pnl` or `volume` |
 | `GET /v1/account/volume` | `trades` projection (aggregated) | 14-day rolling volume, mirrors the contract's fee-tier volume record; liquidations count no volume |
 | `GET /v1/vaults` and per-vault routes | `vaults` + `vault_trades` projections | Reconciled against canonical contract read-backs |
@@ -4290,7 +4290,7 @@ Vault Factory events carry the **vault ID as a second topic**, so you can filter
 | `"claimed"` | `(referrer, amount)` | Referrer claims accrued rewards |
 
 <Callout type="info">
-The deployed market contract does not yet call the referral contract's `record_trade`, so `trade_recorded` events do not appear on-chain today. The 4% referee discount is applied off-chain by the API gateway instead; the on-chain hook is planned for a future market upgrade. See [Referrals](/guides/referrals) for how the program works in practice.
+The deployed market contract does not yet call the referral contract's `record_trade`, so `trade_recorded` events do not appear on-chain today. Code registration and referrer binding (`code_created`, `referrer_set`) are live now; the fee economics — the 4% referee discount and 10% referrer share — activate in v1.1, when a market upgrade wires the on-chain hook. See [Referrals](/guides/referrals) for how the program works in practice.
 </Callout>
 
 ## Reading events yourself
@@ -4431,7 +4431,7 @@ market
        └─ Noeracle Shim
             ├─ maps the Symbol to its 8-byte feed tag (e.g. BTC → BTCUSD)
             └─ Noeracle.get_price_pers(tag)
-                 ├─ fresh entry  → returns (price, timestamp)
+                 ├─ entry exists → returns (price, timestamp)
                  └─ no entry     → panics OracleUnavailable (#32)
 ```
 
@@ -4446,9 +4446,9 @@ The current contract addresses (shim, router, Noeracle, market) are listed on [C
 
 Two independent writers land prices in the same Noeracle slots.
 
-### The keeper heartbeat — every 30 seconds
+### The keeper heartbeat — a rolling loop
 
-A keeper bot fetches the latest signed round for all 14 pairs from the Noeracle API and relays each attestation on-chain via `update_ed25519_persistent`, on a roughly 30-second cadence. This keeps every feed comfortably inside the market's 60-second staleness window even when nobody is trading.
+A keeper bot fetches the latest signed round for all 14 pairs from the Noeracle API and relays each attestation on-chain via `update_ed25519_persistent`. The publishing loop kicks off roughly every 30 seconds and walks the pairs one at a time (with pacing delays between assets to avoid transaction sequence conflicts), so in practice each individual feed is refreshed every few minutes. This heartbeat keeps prices flowing even when nobody is trading — but a quiet feed's on-chain price can still be older than the market's 60-second staleness window between pushes. The guarantee of a fresh price at trade time comes from the router path below, not from the heartbeat.
 
 Before each push, the keeper runs its own defenses:
 
@@ -4467,7 +4467,7 @@ Keeper pushes alone can't guarantee that *your* trade sees a fresh price — and
 2. It calls a router entry point, passing the trade arguments plus the attestation (price, timestamp, round ID, publisher keys, signatures).
 3. The router verifies and relays the attestation to Noeracle, then invokes the market — **in the same transaction**.
 
-The market therefore reads a price that is sub-second fresh at execution time, and a user trade routed this way can never fail the 60-second staleness check (error `#30 PriceStale`).
+The market therefore reads a price that is at most a few seconds old at execution time, and a user trade routed this way can never fail the 60-second staleness check (error `#30 PriceStale`).
 
 | Router entry point | Wraps |
 |---|---|
@@ -4503,7 +4503,7 @@ All values below are the deployed production configuration.
 
 ### Halt opens, allow closes
 
-The market applies its staleness and deviation checks in **strict mode only on risk-increasing paths**: opening positions (isolated and cross), Post-Only and IOC pre-checks, non-reduce-only limit and stop-limit executions, and trailing-stop peak updates.
+The market applies its staleness and deviation checks in **strict mode only on risk-increasing paths**: opening positions (isolated and cross), Post-Only and IOC pre-checks, non-reduce-only limit and stop-limit executions, and trailing-stop placement and peak updates.
 
 **Risk-reducing paths — closes, liquidations, stop-loss / take-profit / trailing executions, reduce-only executions — are never blocked** by staleness or the deviation band. If the oracle degrades, you can always get out of a position; you just can't add new risk.
 
@@ -4725,7 +4725,8 @@ The liquidation fee is **5%** (`liquidation_fee_bps = 500`) of remaining equity:
 ```text
 remaining     = collateral + pnl − funding
 keeper_reward = remaining × 500 / 10_000               // 5%, if remaining > 0
-cap:            reward never exceeds collateral / 10   // 10% of position collateral
+safety cap:     if that exceeds the position's collateral,
+                the reward drops to collateral / 10    // 10% of position collateral
 ```
 
 The keeper receives the reward, the rest of the collateral goes to the Liquidity Vault, and the trader receives nothing. Any attached stop-loss, take-profit, or trailing-stop orders are cancelled with reason `pos_closed`.
@@ -4738,7 +4739,7 @@ The keeper receives the reward, the rest of the collateral goes to the Liquidity
 - Keeper reward = 5% of account equity, capped at 10% of the pool balance before liquidation (and by the market's remaining USDC).
 - Remaining trader equity after the reward goes to the vault; the cross pool balance is zeroed.
 - One `cross_liq` event is emitted for the whole account — there are no per-position events.
-- If an asset's oracle read fails, that position is skipped rather than wrongfully liquidated; the health pre-check treats an unreadable price as maximally favorable to the trader.
+- If an asset's oracle read fails, that position is skipped during settlement rather than liquidated at a bad price, and the health pre-check drops its unrealized PnL from the equity calculation — so unrealized losses on an unreadable asset never trigger the liquidation.
 
 <Callout type="warning">
 Liquidation forfeits your entire remaining collateral (isolated) or account equity (cross). At 10x leverage a roughly 9% adverse move reaches the liquidation price — size positions accordingly, even with testnet funds.
@@ -4782,7 +4783,7 @@ It is deducted from the order's locked collateral (limit entries) or from positi
 Today, **100% of trading fees go to the Liquidity Vault**, where they raise AUM and the NOE token price — see [Liquidity Vault](/guides/vault). The contract has a protocol fee split parameter (default 20%, settable up to 50% by the admin), but it only takes effect once a treasury address is configured on-chain. No treasury is set on the current deployment, so the split is **dormant** and LPs receive the full fee flow.
 
 <Callout type="info">
-Referred traders currently receive their 4% fee discount off-chain, applied by the gateway's fee calculation rather than by the market contract. On-chain fee events therefore show the undiscounted amount for referred wallets. An on-chain referral hook is planned. See [Referrals](/guides/referrals).
+The referral program's 4% fee discount and 10% referrer share activate in v1.1 — the market contract does not yet call the referral hook, so no discount or fee share is applied today and on-chain fee events show the full undiscounted amount for referred wallets. Referral code registration and referrer binding are live now. See [Referrals](/guides/referrals).
 </Callout>
 
 ## Open-interest caps

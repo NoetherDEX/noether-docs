@@ -154,7 +154,7 @@ The trading endpoints (`/v1/orders*` and `/v1/tx*`) can be geo-restricted. When 
 }
 ```
 
-This response is configuration-dependent — treat it as a possible response on the trading endpoints and handle it terminally (do not retry). Read-only endpoints, authentication, and `/v1/health` are never geo-restricted.
+This response is configuration-dependent — treat it as a possible response on the trading endpoints and handle it terminally (do not retry). Read-only endpoints, authentication, and `/v1/health` are outside the geo-guarded surface and are not geo-restricted.
 
 ### 5xx — upstream failures
 
@@ -196,7 +196,7 @@ A transaction rejected before inclusion returns `400 submission_rejected` with t
 
 Two things to know when decoding:
 
-- The gateway's decode map mirrors the shared `NoetherError` table below. A code it does not recognize decodes as `"UnknownContractError"` with the raw code preserved.
+- The gateway's decode map mirrors the shared `NoetherError` table below, with one gap: code 43 (`DepositCapExceeded`) is missing from the gateway's map today. It — like any code the gateway does not recognize — decodes as `"UnknownContractError"` with the raw code preserved, so match on `code`, not `name`.
 - Each contract has its own code space. `NoetherError` covers the market contract (and the shared vault, oracle shim, and router errors). Trader Vault (`FactoryError`) and referral (`ReferralError`) codes overlap numerically with the low `NoetherError` codes — disambiguate by which contract your transaction invoked.
 
 <Callout type="info">

@@ -140,7 +140,8 @@ The liquidation fee is **5%** (`liquidation_fee_bps = 500`) of remaining equity:
 ```text
 remaining     = collateral + pnl − funding
 keeper_reward = remaining × 500 / 10_000               // 5%, if remaining > 0
-cap:            reward never exceeds collateral / 10   // 10% of position collateral
+safety cap:     if that exceeds the position's collateral,
+                the reward drops to collateral / 10    // 10% of position collateral
 ```
 
 The keeper receives the reward, the rest of the collateral goes to the Liquidity Vault, and the trader receives nothing. Any attached stop-loss, take-profit, or trailing-stop orders are cancelled with reason `pos_closed`.
@@ -153,7 +154,7 @@ The keeper receives the reward, the rest of the collateral goes to the Liquidity
 - Keeper reward = 5% of account equity, capped at 10% of the pool balance before liquidation (and by the market's remaining USDC).
 - Remaining trader equity after the reward goes to the vault; the cross pool balance is zeroed.
 - One `cross_liq` event is emitted for the whole account — there are no per-position events.
-- If an asset's oracle read fails, that position is skipped rather than wrongfully liquidated; the health pre-check treats an unreadable price as maximally favorable to the trader.
+- If an asset's oracle read fails, that position is skipped during settlement rather than liquidated at a bad price, and the health pre-check drops its unrealized PnL from the equity calculation — so unrealized losses on an unreadable asset never trigger the liquidation.
 
 <Callout type="warning">
 Liquidation forfeits your entire remaining collateral (isolated) or account equity (cross). At 10x leverage a roughly 9% adverse move reaches the liquidation price — size positions accordingly, even with testnet funds.
@@ -197,7 +198,7 @@ It is deducted from the order's locked collateral (limit entries) or from positi
 Today, **100% of trading fees go to the Liquidity Vault**, where they raise AUM and the NOE token price — see [Liquidity Vault](/guides/vault). The contract has a protocol fee split parameter (default 20%, settable up to 50% by the admin), but it only takes effect once a treasury address is configured on-chain. No treasury is set on the current deployment, so the split is **dormant** and LPs receive the full fee flow.
 
 <Callout type="info">
-Referred traders currently receive their 4% fee discount off-chain, applied by the gateway's fee calculation rather than by the market contract. On-chain fee events therefore show the undiscounted amount for referred wallets. An on-chain referral hook is planned. See [Referrals](/guides/referrals).
+The referral program's 4% fee discount and 10% referrer share activate in v1.1 — the market contract does not yet call the referral hook, so no discount or fee share is applied today and on-chain fee events show the full undiscounted amount for referred wallets. Referral code registration and referrer binding are live now. See [Referrals](/guides/referrals).
 </Callout>
 
 ## Open-interest caps

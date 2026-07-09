@@ -39,7 +39,7 @@ market
        └─ Noeracle Shim
             ├─ maps the Symbol to its 8-byte feed tag (e.g. BTC → BTCUSD)
             └─ Noeracle.get_price_pers(tag)
-                 ├─ fresh entry  → returns (price, timestamp)
+                 ├─ entry exists → returns (price, timestamp)
                  └─ no entry     → panics OracleUnavailable (#32)
 ```
 
@@ -54,9 +54,9 @@ The current contract addresses (shim, router, Noeracle, market) are listed on [C
 
 Two independent writers land prices in the same Noeracle slots.
 
-### The keeper heartbeat — every 30 seconds
+### The keeper heartbeat — a rolling loop
 
-A keeper bot fetches the latest signed round for all 14 pairs from the Noeracle API and relays each attestation on-chain via `update_ed25519_persistent`, on a roughly 30-second cadence. This keeps every feed comfortably inside the market's 60-second staleness window even when nobody is trading.
+A keeper bot fetches the latest signed round for all 14 pairs from the Noeracle API and relays each attestation on-chain via `update_ed25519_persistent`. The publishing loop kicks off roughly every 30 seconds and walks the pairs one at a time (with pacing delays between assets to avoid transaction sequence conflicts), so in practice each individual feed is refreshed every few minutes. This heartbeat keeps prices flowing even when nobody is trading — but a quiet feed's on-chain price can still be older than the market's 60-second staleness window between pushes. The guarantee of a fresh price at trade time comes from the router path below, not from the heartbeat.
 
 Before each push, the keeper runs its own defenses:
 
@@ -75,7 +75,7 @@ Keeper pushes alone can't guarantee that *your* trade sees a fresh price — and
 2. It calls a router entry point, passing the trade arguments plus the attestation (price, timestamp, round ID, publisher keys, signatures).
 3. The router verifies and relays the attestation to Noeracle, then invokes the market — **in the same transaction**.
 
-The market therefore reads a price that is sub-second fresh at execution time, and a user trade routed this way can never fail the 60-second staleness check (error `#30 PriceStale`).
+The market therefore reads a price that is at most a few seconds old at execution time, and a user trade routed this way can never fail the 60-second staleness check (error `#30 PriceStale`).
 
 | Router entry point | Wraps |
 |---|---|
@@ -111,7 +111,7 @@ All values below are the deployed production configuration.
 
 ### Halt opens, allow closes
 
-The market applies its staleness and deviation checks in **strict mode only on risk-increasing paths**: opening positions (isolated and cross), Post-Only and IOC pre-checks, non-reduce-only limit and stop-limit executions, and trailing-stop peak updates.
+The market applies its staleness and deviation checks in **strict mode only on risk-increasing paths**: opening positions (isolated and cross), Post-Only and IOC pre-checks, non-reduce-only limit and stop-limit executions, and trailing-stop placement and peak updates.
 
 **Risk-reducing paths — closes, liquidations, stop-loss / take-profit / trailing executions, reduce-only executions — are never blocked** by staleness or the deviation band. If the oracle degrades, you can always get out of a position; you just can't add new risk.
 

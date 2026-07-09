@@ -19,9 +19,9 @@ Every price object has the same shape:
 | `asset` | string | Asset symbol, e.g. `BTC` |
 | `price` | string | Price as a 7-decimal fixed-point integer, serialized as a string. Divide by 10,000,000 to get dollars: `"632824877778"` = $63,282.4877778 |
 | `priceFloat` | number | The same price pre-converted to a float, for convenience |
-| `timestamp` | integer | Unix seconds — when this price was attested on-chain |
+| `timestamp` | integer | Unix seconds — the attestation time of the price currently stored on-chain |
 
-Use the `price` string when you need exact math (it round-trips the on-chain integer value losslessly); use `priceFloat` for display. This 7-decimal string convention applies to all money, price, and size fields across the API.
+Use the `price` string when you need exact math (it round-trips the on-chain integer value losslessly); use `priceFloat` for display. This 7-decimal string convention applies to money, price, and size fields across the API — the one exception is candle OHLC values, which are plain floats.
 
 ## `GET /v1/oracle/prices`
 
@@ -54,7 +54,7 @@ Returns the current oracle price for a single asset.
 
 | Parameter | In | Type | Notes |
 |---|---|---|---|
-| `asset` | path | string | Asset symbol, e.g. `BTC`. Validated against the supported list — unknown symbols return 404 |
+| `asset` | path | string | Asset symbol, e.g. `BTC`. Case-insensitive (uppercased server-side). Validated against the supported list — unknown symbols return 404 |
 
 ```bash
 curl -s https://noetherapi-production.up.railway.app/v1/markets/BTC/price
@@ -76,12 +76,12 @@ The same price object is also embedded in `GET /v1/markets` and `GET /v1/markets
 
 ## Staleness semantics
 
-The `timestamp` field is the attestation time of the price currently stored on-chain, not the time of your HTTP request. Under normal operation the keeper pushes fresh signed prices roughly every 30 seconds, so the timestamp is usually well under a minute old.
+The `timestamp` field is the attestation time of the price currently stored on-chain, not the time of your HTTP request. Under normal operation the keeper pushes fresh signed prices every 30 seconds (its default cadence), so the timestamp is usually well under a minute old.
 
 Two things to know when consuming it:
 
 - **The gateway never rejects a stale price on these read endpoints.** It returns whatever the shim last stored, with its timestamp. If you need a freshness guarantee, compare `timestamp` against your own clock.
-- **The chain enforces freshness for trading.** The market contract rejects risk-increasing operations (opening positions, executing entry orders) when the on-chain price is older than 60 seconds, returning contract error 30 (`PriceStale`). Risk-reducing operations — closes and liquidations — are never blocked by staleness. Trades placed through the app or the API's prepare/submit flow relay a fresh signed price in the same transaction, so in practice they don't hit this limit. Details in [Oracle & price feeds](/protocol/oracle).
+- **The chain enforces freshness for trading.** The market contract rejects risk-increasing operations (opening positions, executing entry orders) when the on-chain price is older than 60 seconds, returning contract error 30 (`PriceStale`). Risk-reducing operations — closes and liquidations — are never blocked by staleness. Trades placed through the web app go through the Noether Router, which relays a fresh signed price in the same transaction, so they can't hit this limit. Transactions built by the API's prepare/submit flow call the market contract directly and rely on the keeper's regular price pushes instead — if the on-chain price has gone stale, a submit can fail with error 30. Details in [Oracle & price feeds](/protocol/oracle).
 
 Allow up to 3 seconds of additional lag from the gateway's per-asset cache.
 

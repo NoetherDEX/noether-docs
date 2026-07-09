@@ -157,7 +157,7 @@ Vault Factory events carry the **vault ID as a second topic**, so you can filter
 | `"claimed"` | `(referrer, amount)` | Referrer claims accrued rewards |
 
 <Callout type="info">
-The deployed market contract does not yet call the referral contract's `record_trade`, so `trade_recorded` events do not appear on-chain today. The 4% referee discount is applied off-chain by the API gateway instead; the on-chain hook is planned for a future market upgrade. See [Referrals](/guides/referrals) for how the program works in practice.
+The deployed market contract does not yet call the referral contract's `record_trade`, so `trade_recorded` events do not appear on-chain today. Code registration and referrer binding (`code_created`, `referrer_set`) are live now; the fee economics — the 4% referee discount and 10% referrer share — activate in v1.1, when a market upgrade wires the on-chain hook. See [Referrals](/guides/referrals) for how the program works in practice.
 </Callout>
 
 ## Reading events yourself

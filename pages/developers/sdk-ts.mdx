@@ -2,7 +2,7 @@ import { Callout } from 'nextra/components'
 
 # TypeScript SDK
 
-`noether-sdk` is the official TypeScript client for the Noether gateway. It wraps every REST endpoint and the WebSocket stream behind typed sub-clients, and handles API-key issuance, transaction preparation, and submission. This page documents the published version **0.1.1** ([npm](https://www.npmjs.com/package/noether-sdk)).
+`noether-sdk` is the official TypeScript client for the Noether gateway. It wraps the gateway's REST endpoints and the WebSocket stream behind typed sub-clients, and handles API-key issuance, transaction preparation, and submission. This page documents the published version **0.1.1** ([npm](https://www.npmjs.com/package/noether-sdk)).
 
 <Callout type="info">
   The live deployment runs on the Stellar **testnet** with test funds. All snippets below point at the production gateway `https://noetherapi-production.up.railway.app`.
@@ -234,7 +234,7 @@ Behavior:
 
 ## Error classes
 
-All error classes are exported from the package root. Hierarchy: `NoetherError` → `ApiError` → the specific classes.
+All error classes are exported from the package root. Hierarchy: the HTTP classes extend `NoetherError` → `ApiError`; `NetworkError` extends `NoetherError` directly (it never has an HTTP status).
 
 | Class | Triggered by |
 |---|---|

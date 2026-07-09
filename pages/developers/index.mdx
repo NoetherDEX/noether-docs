@@ -2,7 +2,7 @@ import { Callout, Cards } from 'nextra/components'
 
 # Developer overview
 
-Noether exposes a public JSON REST API, a WebSocket stream, and TypeScript and Python SDKs — everything the app at [https://noether.exchange](https://noether.exchange) uses is available to you. This page is the map: base URL, authentication, rate limits, regional restrictions, and where each piece of the reference lives.
+Noether exposes a public JSON REST API, a WebSocket stream, and TypeScript and Python SDKs — the same market data, price feeds, and trading rails that power the app at [https://noether.exchange](https://noether.exchange). This page is the map: base URL, authentication, rate limits, regional restrictions, and where each piece of the reference lives.
 
 <Callout type="info">
 **Base URL:** `https://noetherapi-production.up.railway.app` — all endpoints are under the `/v1` prefix (for example `GET /v1/markets`). The WebSocket endpoint is `wss://noetherapi-production.up.railway.app/v1/ws`. If you have seen `api.noether.exchange` in older materials, do not use it — that hostname does not resolve yet.
@@ -12,12 +12,12 @@ Noether exposes a public JSON REST API, a WebSocket stream, and TypeScript and P
 The live deployment runs on the Stellar **testnet** with test funds. Mainnet is planned but not live; nothing you trade here has real-money value.
 </Callout>
 
-Interactive Swagger UI is served by the gateway itself at [https://noetherapi-production.up.railway.app/docs](https://noetherapi-production.up.railway.app/docs) (OpenAPI JSON at `/docs/json`). Note that the `servers` field inside the served spec is currently a placeholder — always use the Railway base URL above.
+Interactive Swagger UI is served by the gateway itself at [https://noetherapi-production.up.railway.app/docs](https://noetherapi-production.up.railway.app/docs) (OpenAPI JSON at `/docs/json`). Note that the `servers` field inside the served spec is currently a placeholder (`http://localhost:4000`) — always use the Railway base URL above.
 
 ## What you can build
 
 - **Read market data** — 14 markets with live oracle prices (`/v1/markets`, `/v1/oracle/prices`), OHLC candles (`/v1/candles`), per-asset open interest and 24h volume (`/v1/markets/stats`), recent trades, and a trader leaderboard. All of this is public, no key required.
-- **Trade programmatically** — a non-custodial prepare → sign → submit flow: `POST /v1/orders/prepare` returns an unsigned Soroban transaction XDR for your account, you sign it locally with your own key, and `POST /v1/tx/submit` broadcasts it and polls to a final status. The gateway never holds private keys. See [Trading endpoints](/developers/rest-api/trading).
+- **Trade programmatically** — a non-custodial prepare → sign → submit flow: `POST /v1/orders/prepare` returns an unsigned Soroban transaction XDR for your account, you sign it locally with your own key, and `POST /v1/tx/submit` broadcasts it and polls for the result (returning `PENDING` if it is not final within the poll window). The gateway never holds private keys. See [Trading endpoints](/developers/rest-api/trading).
 - **Stream in real time** — WebSocket channels for oracle prices (`ticker.BTC` and the other 13 assets), trade prints (`trades.BTC`), a public event firehose (`events`), and an authenticated per-account event stream. See [WebSocket](/developers/websocket).
 - **Query the ecosystem** — Trader Vault marketplace data (`/v1/vaults`), referral codes and earnings (`/v1/referral/lookup`, `/v1/referral/info`), open positions, and raw decoded contract events.
 
@@ -87,7 +87,7 @@ REST reference by area:
 
 ## Conventions you will see everywhere
 
-- **Precision:** money, price, and size fields are strings holding 7-decimal fixed-point integers (`10_000_000` = 1.0, so `"100000000"` = 10 USDC and `"632824877778"` = $63,282.4877778). Some payloads add a pre-converted `priceFloat` for convenience.
+- **Precision:** money, price, and size fields are strings holding 7-decimal fixed-point integers (`10_000_000` = 1.0, so `"100000000"` = 10 USDC and `"632824877778"` = $63,282.4877778). Some payloads add a pre-converted `priceFloat` for convenience; candle OHLC values are the one exception — they are plain floats.
 - **Timestamps:** most on-chain-derived fields (`ts`, `timestamp`, `openedAt`) are unix seconds; gateway-side fields such as key `createdAt` are millisecond epochs. Each reference page marks the unit.
 - **Direction:** request bodies use the strings `"Long"` and `"Short"`; projection payloads encode direction as an integer, `0` = long and `1` = short.
 - **Pagination:** cursor style via `before_ts` plus `limit`, newest-first (candles are the exception: oldest-first). No page tokens or total counts.

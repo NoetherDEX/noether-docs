@@ -93,7 +93,7 @@ Both fees are read live from the contract on the vault page (they display as "â€
 
 What limits the downside:
 
-- **The insurance buffer pays first.** The protocol maintains a separate buffer of first-loss capital that sits outside the NOE price. When a winning trader is paid out, the buffer is drained before LP funds are touched.
+- **An insurance buffer pays first.** The vault has a separate buffer of first-loss capital that sits outside the NOE price: when a winning trader is paid out, the buffer is drained before LP funds are touched. (On the current testnet deployment this buffer hasn't been seeded yet, so today the caps below do the real work.)
 - **Open-interest caps bound exposure.** Every new position reserves its full potential payout in the vault. Open interest in any single asset, per side (long or short), is capped at about **25% of vault assets**, and total reservations across all assets are capped at **70% of vault assets**. Opens that would breach a cap are rejected, so the vault can never be fully committed to one market â€” or to trades in aggregate.
 - **Accounting follows real money.** The pool is credited only for USDC that actually arrives, and a trader's loss on an isolated position can never exceed that position's own collateral.
 

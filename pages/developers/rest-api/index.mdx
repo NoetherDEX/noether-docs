@@ -31,7 +31,7 @@ Each endpoint in the reference is marked with one of two badges:
 | **Public** | No credentials. Rate-limited per IP. |
 | **API key** | Requires `Authorization: Bearer <keyId>:<secret>`. Rate-limited per key. |
 
-API keys are issued through a wallet-signed challenge and are currently gated to a closed-beta allowlist — the full flow, header format, and optional `X-Timestamp` replay protection are on [/developers/authentication](/developers/authentication). All market data, prices, events, vaults lists, and referral lookups are public; account data, order preparation, transaction submission, and key management require a key.
+API keys are issued through a wallet-signed challenge and are currently gated to a closed-beta allowlist — the full flow, header format, and optional `X-Timestamp` replay protection are on [/developers/authentication](/developers/authentication). All market data, prices, events, vaults lists, and referral lookups are public — as is `GET /v1/account/volume`, despite its path; the other account endpoints, order preparation, transaction submission, and key listing/revocation require a key.
 
 ## Common conventions
 

@@ -15,7 +15,7 @@ Trader Vaults are separate from the protocol's [Liquidity Vault](/guides/vault).
 | Parameter | Value | Notes |
 |---|---|---|
 | Leader profit share | 10% | Only on gains above the high-water mark |
-| Leader minimum holding | 5% of vault shares | Enforced on-chain after every deposit, withdrawal, and leader trade |
+| Leader minimum holding | 5% of vault shares | Enforced on-chain after every deposit, withdrawal, and every position the leader opens |
 | Max outside capital | 19x the leader's own stake | Direct consequence of the 5% rule |
 | Vault deposit / withdrawal fee | None | Trading fees still apply to the leader's trades |
 | Share pricing | Liquid NAV | First deposit: 1 USDC = 1 share |
@@ -108,7 +108,7 @@ The 5% rule is enforced on-chain after every deposit, withdrawal, and every posi
 
 There are two ways to trade vault funds. Both require the vault to be unpaused and the connected wallet to be the leader.
 
-**Manage page** — from the detail page of a vault you lead, open the manage view. It has three cards:
+**Manage page** — a dedicated leader console at `/vaults/{id}/manage` (append `/manage` to your vault's URL — there is no button for it in the app yet; non-leaders see a "Leader-only page" notice). It has three cards:
 
 - **Open position** — pick an asset (**BTC, ETH, or XLM only** in this panel — a current limitation; the full pair list is available in leader mode on the trade page), choose Long or Short, enter collateral in USDC, and set leverage with the 1–10x slider (default 2x). One signature opens the position with the vault's USDC.
 - **Close position** — enter the position id and sign once.

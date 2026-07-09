@@ -213,7 +213,7 @@ All methods are coroutines. "Auth" means the client must be constructed with `Cr
 | `tx` | `submit(signed_xdr=, poll_timeout_ms=None)` | yes | `SubmittedTx` (`.hash`, `.status`, `.ledger`) |
 | `vaults` | `list(leader=, limit=)` | no | `list[VaultRow]` |
 | `vaults` | `get(vault_id)` | no | `VaultRow` **or `None` on unknown id** |
-| `vaults` | `deposits(id, limit=)` / `withdraws(id, limit=)` / `fee_claims(id)` | no | `list[VaultActivityRow]` |
+| `vaults` | `deposits(id, limit=)` / `withdraws(id, limit=)` / `fee_claims(id, limit=)` | no | `list[VaultActivityRow]` |
 | `referral` | `lookup_code(code)` | no | `ReferrerRow` or `None` |
 | `referral` | `me()` | yes | `ReferralMeResponse` |
 | `referral` | `trades(limit=)` / `claims(limit=)` | yes | referral trade / claim rows |

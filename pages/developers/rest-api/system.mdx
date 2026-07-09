@@ -111,7 +111,7 @@ Returns `{"revoked": true}` on success, or `404 {"error":"key_not_found"}` when 
 
 ## `GET /v1/events` — raw contract events
 
-Public. Returns decoded on-chain contract events from the indexer, newest first. This is the same data that streams live on the WebSocket `events` channel — see [WebSocket](/developers/websocket).
+Public. Returns decoded on-chain contract events from the indexer, newest first. The same underlying event rows also stream live (framed slightly differently) on the WebSocket `events` channel — see [WebSocket](/developers/websocket).
 
 | Query param | Type | Notes |
 |---|---|---|
@@ -145,7 +145,7 @@ curl -s "https://noetherapi-production.up.railway.app/v1/events?topic=funding_ap
 }
 ```
 
-`ledgerCloseTs` is unix seconds; `insertedAt` is a millisecond epoch. `payload` is the decoded event body and its shape varies per topic. Market topics include `position_opened`, `position_closed`, `position_liquidated`, `order_placed`, `order_executed`, `order_cancelled`, and `funding_applied`; vault and referral contracts emit their own topics. The exact on-chain event tuples behind these payloads are documented in [Contracts](/protocol/contracts).
+`ledgerCloseTs` is unix seconds; `insertedAt` is a millisecond epoch. The event log preserves history across contract redeployments, so `contractId` may reference a contract from an earlier deployment (as in this real captured sample) — pass the `contract` filter if you only want events from the currently deployed contracts (see `/v1/health`). `payload` is the decoded event body and its shape varies per topic. Market topics include `position_opened`, `position_closed`, `position_liquidated`, `order_placed`, `order_executed`, `order_cancelled`, and `funding_applied`; vault and referral contracts emit their own topics. The exact on-chain event tuples behind these payloads are documented in [Contracts](/protocol/contracts).
 
 ## `GET /v1/health` — liveness and configuration probe
 
@@ -184,7 +184,7 @@ curl -s https://noetherapi-production.up.railway.app/v1/health
 | `indexer.lastUpdatedAt` | Millisecond epoch of the last indexer write |
 | `indexer.ledgerAgeSeconds` | How far the indexer read-side lags behind now |
 
-Endpoints backed by indexer projections (`/v1/events`, `/v1/trades`, `/v1/leaderboard`, `/v1/positions/open`, and others) can lag behind the chain; live oracle price endpoints do not. Before relying on projection data, check `indexer.ledgerAgeSeconds` here. On a fresh deployment with no indexed data yet, the `indexer` fields are `null`.
+Endpoints backed by indexer projections (`/v1/events`, `/v1/trades`, `/v1/leaderboard`, `/v1/positions/open`, and others) can lag behind the chain; live oracle price endpoints do not. Before relying on projection data, check `indexer.ledgerAgeSeconds` here — the real captured sample above shows a heavily lagging indexer (`ledgerAgeSeconds` ≈ 32 days), which is exactly the condition this field exists to expose. On a fresh deployment with no indexed data yet, the `indexer` fields are `null`.
 
 ## Next steps
 

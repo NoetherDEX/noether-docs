@@ -23,12 +23,12 @@
 
 ## Developers
 
-- [Developer overview](/developers): Noether exposes a public JSON REST API, a WebSocket stream, and TypeScript and Python SDKs — everything the app at https://noether.exchange uses is available to you. This page is the map: base URL, authentication, rate l
+- [Developer overview](/developers): Noether exposes a public JSON REST API, a WebSocket stream, and TypeScript and Python SDKs — the same market data, price feeds, and trading rails that power the app at https://noether.exchange. This page is the map: base
 - [API Explorer](/developers/api-explorer): Browse every REST endpoint interactively — request/response schemas, parameters, and
 - [Authentication](/developers/authentication): The gateway authenticates requests with API keys. You get a key by proving control of a Stellar wallet: request a challenge, sign it with the wallet, and exchange the signed proof for a `keyId` + `secret` pair. This page
 - [Error reference](/developers/errors): Every error you can hit while integrating with Noether, in one place: the HTTP errors the gateway returns, how failed on-chain transactions surface in API responses, and the complete contract error code tables for the ma
 - [Python SDK](/developers/sdk-py): `noether-sdk` on PyPI is the official async Python client for the Noether gateway: REST sub-clients for markets, oracle prices, accounts, order preparation and transaction submission, plus a reconnecting WebSocket client
-- [TypeScript SDK](/developers/sdk-ts): `noether-sdk` is the official TypeScript client for the Noether gateway. It wraps every REST endpoint and the WebSocket stream behind typed sub-clients, and handles API-key issuance, transaction preparation, and submissi
+- [TypeScript SDK](/developers/sdk-ts): `noether-sdk` is the official TypeScript client for the Noether gateway. It wraps the gateway's REST endpoints and the WebSocket stream behind typed sub-clients, and handles API-key issuance, transaction preparation, and
 - [WebSocket API](/developers/websocket): The gateway streams live market data and account events over a single WebSocket endpoint. This page is the full protocol reference: connection, client and server frames, all four channel families, limits, and reconnect b
 
 ## REST API Reference

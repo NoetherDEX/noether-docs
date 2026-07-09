@@ -71,7 +71,7 @@ There are exactly four channel families. Any channel name that doesn't match one
 
 ### `events` — public event firehose
 
-Every decoded contract event, in ledger order. Data is sourced from the indexer, which the gateway polls every second — expect roughly one to a few seconds of latency behind the chain.
+Every decoded contract event, delivered in the order the indexer recorded it (normally ledger order). Data is sourced from the indexer, which the gateway polls every second — expect roughly one to a few seconds of latency behind the chain.
 
 ```json
 {

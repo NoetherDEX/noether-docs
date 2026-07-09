@@ -62,7 +62,7 @@ Noether is a fully on-chain perpetual futures exchange on Stellar: every positio
 
 Three things to notice:
 
-1. **Prices are pulled, not pushed on a fixed schedule alone.** The keeper keeps the on-chain price fresh in the background (about every 30 seconds), and the Noether Router additionally relays a sub-second-fresh signed attestation *inside the same transaction* as your trade — so a trade can never fail the market's 60-second staleness check. Details in [/protocol/oracle](/protocol/oracle).
+1. **Prices are pulled, not pushed on a fixed schedule alone.** The keeper keeps the on-chain price fresh in the background (about every 30 seconds), and the Noether Router additionally relays a freshly fetched signed attestation *inside the same transaction* as your trade — so a trade can never fail the market's 60-second staleness check. Details in [/protocol/oracle](/protocol/oracle).
 2. **The Liquidity Vault is the counterparty to every trade.** The market never holds LP funds itself; it reserves potential payouts at open and settles PnL against the vault at close.
 3. **Reads are split by freshness needs.** Prices come straight from the chain (via the shim); histories, leaderboards, and open-position lists come from indexer projections rebuilt from contract events.
 
@@ -92,7 +92,7 @@ Powers **Trader Vaults** — user-created copy-trading vaults, distinct from the
 
 ### Referral
 
-The on-chain referral system: register a code, bind a referee to a referrer, record trades (callable only by the market address), and claim accrued rewards. The economics are a 4% fee discount for referees and a 10% fee share for referrers. Today the deployed market does not yet invoke the referral discount hook on-chain; the API gateway applies the referee discount off-chain in its fee calculation, so contract events and user-visible fees can diverge slightly for referred wallets until the on-chain hook ships. See [/guides/referrals](/guides/referrals).
+The on-chain referral system: register a code, bind a referee to a referrer, record trades (an entry point callable only by the market address), and claim accrued rewards. Code registration and referee binding are live today; the economics — a 4% fee discount for referees, a 10% fee share for referrers, and reward claims — activate in v1.1. The `record_trade` hook is gated to the market address, and the currently deployed market does not call it yet, so no discount or fee share accrues today. See [/guides/referrals](/guides/referrals).
 
 <Callout type="info">
   A seventh contract sits underneath all of this: **Noeracle**, the signed price source. It's a
@@ -117,7 +117,7 @@ Turns contract events into queryable data. It polls Soroban `getEvents` every 2 
 
 ### Keeper bot
 
-The chain's heartbeat — an autonomous service that keeps the protocol live. On its background schedule it fetches the latest signed Noeracle round and relays an attestation on-chain for every pair **about every 30 seconds**, which keeps prices comfortably inside the market's 60-second staleness window. On a faster **5-second cycle** it snapshots all positions and orders, then calls the market directly (not through the router) to liquidate under-margined positions and cross accounts, execute triggered orders, and update trailing-stop peaks — each candidate is simulated first and submitted only when the simulation succeeds, so on-chain state is always the final arbiter. It applies the hourly funding rate on schedule and extends contract storage lifetimes every 6 hours. Before any price push it runs its own defenses: absolute sanity bands, a per-push jump bound, and a cross-check against an independent reference feed.
+The chain's heartbeat — an autonomous service that keeps the protocol live. On its background schedule it fetches the latest signed Noeracle round and relays an attestation on-chain for every pair **about every 30 seconds**, which keeps prices inside the market's 60-second staleness window (a full pass over all 14 pairs takes time, so the router's in-transaction relay — not the background push — is what guarantees freshness at trade time). On a faster **5-second cycle** it snapshots all positions and orders, then calls the market directly (not through the router) to liquidate under-margined positions and cross accounts, execute triggered orders, and update trailing-stop peaks — each candidate is simulated first and submitted only when the simulation succeeds, so on-chain state is always the final arbiter. It applies the hourly funding rate on schedule and extends contract storage lifetimes every 6 hours. Before any price push it runs its own defenses: absolute sanity bands, a per-push jump bound, and a cross-check against an independent reference feed.
 
 ## Life of a trade
 
@@ -127,7 +127,7 @@ Putting the pieces together, here is what happens when you open a market positio
 2. **Build and sign one transaction.** The app assembles a single router call — `open_with_price(trader, asset, collateral, leverage, direction, price, timestamp, round_id, pubkeys, sigs)` — and your wallet signs it. You authorize the entire call tree with that one signature.
 3. **Router verification.** On-chain, the router checks every supplied publisher key against its stored allowlist (a foreign or empty key set fails with `Unauthorized`, error #3) and checks the price against a coarse per-asset sanity band (a garbage price fails with `InvalidPrice`, error #31, even if the signature is valid).
 4. **Price relay.** The router relays the verified attestation into Noeracle's persistent on-chain storage — the exact slot the shim reads.
-5. **Market execution.** In the same transaction, the router invokes the market's `open_position`. The market reads the price back through the shim; because the relay just happened, the price is sub-second fresh and cannot fail the 60-second staleness check. Risk-increasing paths like opens also enforce a 1% deviation band against the last good price.
+5. **Market execution.** In the same transaction, the router invokes the market's `open_position`. The market reads the price back through the shim; because the relay just happened, the price is only seconds old and cannot fail the 60-second staleness check. Risk-increasing paths like opens also enforce a 1% deviation band against the last good price.
 6. **Vault reservation.** The market calls the Liquidity Vault to reserve the position's maximum payout. If the reservation would push aggregate reserves past 70% of AUM, or the pair's per-side open interest past 25% of AUM, the open fails with `OpenInterestCapExceeded` (error #82).
 7. **Event emission.** The position is stored and a `position_opened` event is emitted with the position ID, trader, asset, direction, size, and entry price.
 8. **Indexing.** Within a couple of seconds the indexer's poll picks up the event and upserts the open-positions projection — the position now appears in `GET /v1/positions/open` and on the WebSocket event channels.
@@ -152,7 +152,7 @@ The gateway mixes two data sources: direct chain reads (always current) and inde
 | `GET /v1/candles` | `candles` projection | Built from Noeracle HTTP polling, not chain events; Binance fallback; response carries a `source` field (`"noeracle"` or `"binance"`) |
 | `GET /v1/events` | `events_raw` projection | Raw contract event archive, filterable by topic, contract, ledger, timestamp |
 | `GET /v1/positions/open` | `positions` projection | Upserted on open, deleted on close/liquidation; reconciled against contract reads |
-| `GET /v1/trades` | `trades` projection | Realized closes and liquidations, joined to their opens; WS `trades.<ASSET>` streams the same |
+| `GET /v1/trades` | `trades` projection | Realized closes and liquidations, joined to their opens; WS `trades.<ASSET>` streams a lighter real-time feed (opens, closes, and liquidations) |
 | `GET /v1/leaderboard` | `trades` projection (aggregated) | Sort by `pnl` or `volume` |
 | `GET /v1/account/volume` | `trades` projection (aggregated) | 14-day rolling volume, mirrors the contract's fee-tier volume record; liquidations count no volume |
 | `GET /v1/vaults` and per-vault routes | `vaults` + `vault_trades` projections | Reconciled against canonical contract read-backs |

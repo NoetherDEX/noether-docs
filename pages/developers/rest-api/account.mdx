@@ -60,7 +60,7 @@ The response is `{"events":[ ... ]}` where each row is:
 
 | Field | Type | Description |
 |---|---|---|
-| `eventId` | string | Unique event id, stable sort key |
+| `eventId` | string | Unique event id (rows are ordered by ledger, then event id, descending) |
 | `contractId` | string | Emitting contract address |
 | `topic` | string | Event topic, e.g. `position_opened`, `order_cancelled` |
 | `ledger` | integer | Ledger sequence |
@@ -145,7 +145,7 @@ curl -s "https://noetherapi-production.up.railway.app/v1/account/volume?address=
 
 ## Data freshness
 
-Everything on this page except `/v1/account/me` is served from indexer projections, not live chain reads, so it can lag behind the chain. Check `GET /v1/health` and read `indexer.ledgerAgeSeconds` to see how far behind the read side is. Endpoints whose projection tables are empty return empty arrays (`{"events":[]}`) rather than errors.
+Everything on this page except `/v1/account/me` is served from indexer projections, not live chain reads, so it can lag behind the chain. Check `GET /v1/health` and read `indexer.ledgerAgeSeconds` to see how far behind the read side is. Endpoints whose projection tables are missing or empty return empty arrays (`{"events":[]}`) rather than errors.
 
 ## Next steps
 

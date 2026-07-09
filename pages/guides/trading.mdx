@@ -55,7 +55,7 @@ A two-phase entry order: when the price reaches your **stop price**, a limit ord
 These attach to an **existing position** rather than opening a new one:
 
 - **Stop-loss** closes the position when the price moves against you to the trigger (below entry for longs, above for shorts). The modal offers quick-set buttons (−2% / −5% / −10% from entry for longs) and previews the estimated loss at trigger.
-- **Take-profit** closes the position when the price moves in your favor to the trigger (above entry for longs, below for shorts). You can optionally add a **limit price** to make it a *take-limit* — execution then references your limit price instead of the trigger. Leave the limit empty for market execution at trigger.
+- **Take-profit** closes the position when the price moves in your favor to the trigger (above entry for longs, below for shorts). You can optionally add a **limit price** to make it a *take-limit* — execution then references your limit price instead of the trigger (the limit must lie between your entry price and the trigger, or the contract rejects it). Leave the limit empty for market execution at trigger.
 
 A position can hold at most one stop-loss and one take-profit at a time. Neither locks extra collateral. When the position closes for any reason — manual close, the other trigger firing, or liquidation — any remaining attached orders are cancelled automatically.
 
@@ -69,11 +69,11 @@ A stop-loss that follows the price. Pick an open isolated position and a trailin
 
 ### Reduce-only
 
-A checkbox on limit and stop-limit orders. A reduce-only order **can only shrink your exposure — it can never open or grow a position**. At execution it finds your largest opposing isolated position in the same asset that fits inside the order's size, refunds the order's escrowed collateral, and closes that position. If no suitable opposing position exists (say it was already closed), the order cancels itself instead of opening an unwanted new position. Use it for exits you place in advance, when you want a guarantee that a stale order can't flip you into a fresh trade.
+A checkbox in the Limit tab's order settings (the contract also accepts the flag on stop-limit orders, but the Stop Limit tab does not currently expose it). A reduce-only order **can only shrink your exposure — it can never open or grow a position**. At execution it finds your largest opposing isolated position in the same asset that fits inside the order's size, refunds the order's escrowed collateral, and closes that position. If no suitable opposing position exists (say it was already closed), the order cancels itself instead of opening an unwanted new position. Use it for exits you place in advance, when you want a guarantee that a stale order can't flip you into a fresh trade.
 
 ## Time-in-force
 
-Limit and stop-limit orders take a time-in-force setting:
+Limit orders take a time-in-force setting, chosen in the Limit tab's order settings:
 
 | Mode | Behavior | Use when |
 |---|---|---|
@@ -81,7 +81,7 @@ Limit and stop-limit orders take a time-in-force setting:
 | **IOC** (Immediate Or Cancel) | Fills now if the trigger condition is already met, otherwise cancels instantly and refunds collateral | You want the price now or not at all |
 | **Post Only** | Rejected at placement if it would fill immediately — guarantees you are the maker | You specifically want the maker fee rate |
 
-For stop-limit orders, IOC and Post Only apply to the limit phase (after the stop triggers), not to the stop itself.
+Stop-limit orders also carry a time-in-force at the contract level — there, IOC and Post Only apply to the limit phase (after the stop triggers), not to the stop itself — but the Stop Limit tab does not currently expose the selector.
 
 ## Margin modes
 
@@ -123,9 +123,9 @@ Noether charges a trading fee **only when a position opens** — deducted from y
 | Tier | 14-day rolling volume | Maker | Taker |
 |---|---|---|---|
 | Base | $0 | 0.020% | 0.050% |
-| Tier 1 | over $20,000 | 0.015% | 0.040% |
-| Tier 2 | over $50,000 | 0.010% | 0.030% |
-| Tier 3 | over $100,000 | 0.005% | 0.020% |
+| Tier 1 | ≥ $20,000 | 0.015% | 0.040% |
+| Tier 2 | ≥ $50,000 | 0.010% | 0.030% |
+| Tier 3 | ≥ $100,000 | 0.005% | 0.020% |
 
 (These thresholds are testnet values, lowered for testing; mainnet plans use $1M / $5M / $25M.)
 

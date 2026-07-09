@@ -12,7 +12,7 @@ Noether is live on the Stellar **testnet**. All funds are test funds — get fre
 
 | | |
 |---|---|
-| Markets | 14 perpetual pairs, including BTC-PERP, ETH-PERP, XLM-PERP, and SOL-PERP |
+| Markets | 14 perpetual pairs, including BTC-PERP, ETH-PERP, XLM-PERP, and SOL-PERP (13 listed in the web app — HYPE is API-only) |
 | Leverage | Up to 10x (25x is planned for mainnet) |
 | Collateral | USDC, with isolated and cross margin modes |
 | Fees | Maker from 0.020%, taker from 0.050% — rates decrease with trading volume |
@@ -23,7 +23,7 @@ Noether is live on the Stellar **testnet**. All funds are test funds — get fre
 
 - **Trade in the browser** at [noether.exchange](https://noether.exchange) with Freighter or LOBSTR (via WalletConnect). There is no exchange account — your wallet signs every transaction.
 - **Build against the gateway**, a REST and WebSocket API that prepares transactions for you to sign locally. It never holds your keys. TypeScript and Python SDKs mirror the full API surface.
-- **The market contract** holds all trading logic; the Liquidity Vault is the counterparty to every trade and pays LPs the fees. Prices come from the Noeracle oracle, relayed atomically at trade time by the Noether Router so trades always execute against a fresh signed price.
+- **The market contract** holds all trading logic; the Liquidity Vault is the counterparty to every trade, and trading fees accrue to the vault — LPs earn them through the value of their NOE shares. Prices come from the Noeracle oracle: in-app trades go through the Noether Router, which relays a fresh signed price and executes the trade in one atomic transaction, and the market rejects any price older than 60 seconds.
 
 ## Where to start
 
