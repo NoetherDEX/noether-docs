@@ -1,0 +1,2947 @@
+{
+    "openapi": "3.0.3",
+    "info": {
+        "title": "Noether API",
+        "description": "Public REST + WebSocket gateway for the Noether decentralized perpetual exchange on Stellar / Soroban.",
+        "version": "0.1.0"
+    },
+    "components": {
+        "schemas": {}
+    },
+    "paths": {
+        "/v1/health": {
+            "get": {
+                "tags": [
+                    "system"
+                ],
+                "description": "Liveness + config probe. Reports uptime, the resolved contract addresses this process actually serves (env override vs baked manifest \u2014 D-4), and how stale the indexer read-side is (age of the last indexed ledger).",
+                "responses": {
+                    "200": {
+                        "description": "Default Response"
+                    }
+                }
+            }
+        },
+        "/v1/markets/stats": {
+            "get": {
+                "tags": [
+                    "markets"
+                ],
+                "description": "Per-asset open interest (long / short / net, from the open-positions projection) and 24h traded volume (position_opened + realized position_closed / liquidated notional). All amounts are i128 decimal strings with 7-decimal USDC precision.",
+                "responses": {
+                    "200": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "stats": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "asset": {
+                                                        "type": "string"
+                                                    },
+                                                    "openInterestLong": {
+                                                        "type": "string"
+                                                    },
+                                                    "openInterestShort": {
+                                                        "type": "string"
+                                                    },
+                                                    "openInterestNet": {
+                                                        "type": "string"
+                                                    },
+                                                    "openPositions": {
+                                                        "type": "integer"
+                                                    },
+                                                    "volume24h": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "asset",
+                                                    "openInterestLong",
+                                                    "openInterestShort",
+                                                    "openInterestNet",
+                                                    "openPositions",
+                                                    "volume24h"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "stats"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/markets": {
+            "get": {
+                "tags": [
+                    "markets"
+                ],
+                "description": "List all supported markets with current oracle prices.",
+                "responses": {
+                    "200": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "markets": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "asset": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "symbol": {
+                                                                "type": "string"
+                                                            },
+                                                            "name": {
+                                                                "type": "string"
+                                                            },
+                                                            "decimals": {
+                                                                "type": "integer"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "symbol",
+                                                            "name",
+                                                            "decimals"
+                                                        ]
+                                                    },
+                                                    "oracle": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "asset": {
+                                                                "type": "string"
+                                                            },
+                                                            "price": {
+                                                                "type": "string"
+                                                            },
+                                                            "priceFloat": {
+                                                                "type": "number"
+                                                            },
+                                                            "timestamp": {
+                                                                "type": "integer"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "asset",
+                                                            "price",
+                                                            "priceFloat",
+                                                            "timestamp"
+                                                        ]
+                                                    }
+                                                },
+                                                "required": [
+                                                    "asset",
+                                                    "oracle"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "markets"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/markets/{asset}": {
+            "get": {
+                "tags": [
+                    "markets"
+                ],
+                "description": "Single market detail with current oracle price.",
+                "parameters": [
+                    {
+                        "schema": {
+                            "type": "string"
+                        },
+                        "in": "path",
+                        "name": "asset",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "asset": {
+                                            "type": "object",
+                                            "properties": {
+                                                "symbol": {
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "decimals": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "symbol",
+                                                "name",
+                                                "decimals"
+                                            ]
+                                        },
+                                        "oracle": {
+                                            "type": "object",
+                                            "properties": {
+                                                "asset": {
+                                                    "type": "string"
+                                                },
+                                                "price": {
+                                                    "type": "string"
+                                                },
+                                                "priceFloat": {
+                                                    "type": "number"
+                                                },
+                                                "timestamp": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "asset",
+                                                "price",
+                                                "priceFloat",
+                                                "timestamp"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "asset",
+                                        "oracle"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        },
+                                        "asset": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "error"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/oracle/prices": {
+            "get": {
+                "tags": [
+                    "oracle"
+                ],
+                "description": "All supported asset prices read live from the Noeracle shim contract.",
+                "responses": {
+                    "200": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "prices": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "asset": {
+                                                        "type": "string"
+                                                    },
+                                                    "price": {
+                                                        "type": "string"
+                                                    },
+                                                    "priceFloat": {
+                                                        "type": "number"
+                                                    },
+                                                    "timestamp": {
+                                                        "type": "integer"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "asset",
+                                                    "price",
+                                                    "priceFloat",
+                                                    "timestamp"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "prices"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/markets/{asset}/price": {
+            "get": {
+                "tags": [
+                    "oracle"
+                ],
+                "description": "Current oracle price for a single asset.",
+                "parameters": [
+                    {
+                        "schema": {
+                            "type": "string"
+                        },
+                        "in": "path",
+                        "name": "asset",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "asset": {
+                                            "type": "string"
+                                        },
+                                        "price": {
+                                            "type": "string"
+                                        },
+                                        "priceFloat": {
+                                            "type": "number"
+                                        },
+                                        "timestamp": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "required": [
+                                        "asset",
+                                        "price",
+                                        "priceFloat",
+                                        "timestamp"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        },
+                                        "asset": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "error"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/events": {
+            "get": {
+                "tags": [
+                    "events"
+                ],
+                "description": "Raw decoded contract events captured by the indexer. Phase 3 surfaces this directly; trade and candle projections land in Phase 3.1.",
+                "parameters": [
+                    {
+                        "schema": {
+                            "type": "string"
+                        },
+                        "in": "query",
+                        "name": "topic",
+                        "required": false
+                    },
+                    {
+                        "schema": {
+                            "type": "string"
+                        },
+                        "in": "query",
+                        "name": "contract",
+                        "required": false
+                    },
+                    {
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "in": "query",
+                        "name": "from_ledger",
+                        "required": false
+                    },
+                    {
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "in": "query",
+                        "name": "to_ledger",
+                        "required": false
+                    },
+                    {
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "in": "query",
+                        "name": "before_ts",
+                        "required": false
+                    },
+                    {
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 500
+                        },
+                        "in": "query",
+                        "name": "limit",
+                        "required": false
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "events": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "eventId": {
+                                                        "type": "string"
+                                                    },
+                                                    "contractId": {
+                                                        "type": "string"
+                                                    },
+                                                    "topic": {
+                                                        "type": "string"
+                                                    },
+                                                    "ledger": {
+                                                        "type": "integer"
+                                                    },
+                                                    "ledgerCloseTs": {
+                                                        "type": "integer"
+                                                    },
+                                                    "txHash": {
+                                                        "type": "string"
+                                                    },
+                                                    "payload": {},
+                                                    "insertedAt": {
+                                                        "type": "integer"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "eventId",
+                                                    "contractId",
+                                                    "topic",
+                                                    "ledger",
+                                                    "ledgerCloseTs",
+                                                    "txHash"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "events"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/keys/beta-status": {
+            "get": {
+                "tags": [
+                    "keys"
+                ],
+                "description": "Public \u2014 reports whether key issuance is currently gated to a closed-beta allowlist, and optionally whether the supplied address is on it.",
+                "parameters": [
+                    {
+                        "schema": {
+                            "type": "string",
+                            "minLength": 56,
+                            "maxLength": 56
+                        },
+                        "in": "query",
+                        "name": "address",
+                        "required": false
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "gated": {
+                                            "type": "boolean"
+                                        },
+                                        "allowed": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "gated",
+                                        "allowed"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/keys/challenge": {
+            "post": {
+                "tags": [
+                    "keys"
+                ],
+                "description": "Issue a one-time challenge string the wallet must sign before an API key can be created.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "address": {
+                                        "type": "string",
+                                        "minLength": 56,
+                                        "maxLength": 56
+                                    }
+                                },
+                                "required": [
+                                    "address"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "challengeHex": {
+                                            "type": "string"
+                                        },
+                                        "expiresAt": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "required": [
+                                        "challengeHex",
+                                        "expiresAt"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/keys": {
+            "post": {
+                "tags": [
+                    "keys"
+                ],
+                "description": "Exchange a signed challenge for a freshly minted API key + secret.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "address": {
+                                        "type": "string",
+                                        "minLength": 56,
+                                        "maxLength": 56
+                                    },
+                                    "challenge": {
+                                        "type": "string"
+                                    },
+                                    "signature": {
+                                        "type": "string"
+                                    },
+                                    "label": {
+                                        "type": "string",
+                                        "maxLength": 64
+                                    }
+                                },
+                                "required": [
+                                    "address",
+                                    "challenge",
+                                    "signature"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "keyId": {
+                                            "type": "string"
+                                        },
+                                        "secret": {
+                                            "type": "string"
+                                        },
+                                        "tier": {
+                                            "type": "string"
+                                        },
+                                        "owner": {
+                                            "type": "string"
+                                        },
+                                        "createdAt": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "required": [
+                                        "keyId",
+                                        "secret",
+                                        "tier",
+                                        "owner",
+                                        "createdAt"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "error"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "error"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "get": {
+                "tags": [
+                    "keys"
+                ],
+                "description": "List all API keys owned by the authenticated key holder.",
+                "responses": {
+                    "200": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "keys": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "additionalProperties": true,
+                                                "properties": {
+                                                    "keyId": {
+                                                        "type": "string"
+                                                    },
+                                                    "owner": {
+                                                        "type": "string"
+                                                    },
+                                                    "tier": {
+                                                        "type": "string"
+                                                    },
+                                                    "label": {
+                                                        "type": [
+                                                            "null",
+                                                            "string"
+                                                        ]
+                                                    },
+                                                    "createdAt": {
+                                                        "type": "integer"
+                                                    },
+                                                    "lastUsedAt": {
+                                                        "type": [
+                                                            "null",
+                                                            "integer"
+                                                        ]
+                                                    },
+                                                    "revokedAt": {
+                                                        "type": [
+                                                            "null",
+                                                            "integer"
+                                                        ]
+                                                    }
+                                                },
+                                                "required": [
+                                                    "keyId",
+                                                    "owner",
+                                                    "tier",
+                                                    "createdAt"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "keys"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/keys/{keyId}": {
+            "delete": {
+                "tags": [
+                    "keys"
+                ],
+                "description": "Revoke an API key. Only the owner can revoke their own keys.",
+                "parameters": [
+                    {
+                        "schema": {
+                            "type": "string"
+                        },
+                        "in": "path",
+                        "name": "keyId",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "revoked": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "revoked"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "error"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/account/me": {
+            "get": {
+                "tags": [
+                    "account"
+                ],
+                "description": "Identity and tier of the authenticated API key holder.",
+                "responses": {
+                    "200": {
+                        "description": "Default Response"
+                    }
+                }
+            }
+        },
+        "/v1/account/me/events": {
+            "get": {
+                "tags": [
+                    "account"
+                ],
+                "description": "Decoded contract events whose payload references the authenticated owner address.",
+                "parameters": [
+                    {
+                        "schema": {
+                            "type": "string"
+                        },
+                        "in": "query",
+                        "name": "topic",
+                        "required": false
+                    },
+                    {
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "in": "query",
+                        "name": "before_ts",
+                        "required": false
+                    },
+                    {
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 500
+                        },
+                        "in": "query",
+                        "name": "limit",
+                        "required": false
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Default Response"
+                    }
+                }
+            }
+        },
+        "/v1/account/me/positions": {
+            "get": {
+                "tags": [
+                    "account"
+                ],
+                "description": "Open positions for the authenticated owner (from the indexer positions projection), plus the owner's position events (position_opened, position_closed, position_liquidated).",
+                "responses": {
+                    "200": {
+                        "description": "Default Response"
+                    }
+                }
+            }
+        },
+        "/v1/account/me/orders": {
+            "get": {
+                "tags": [
+                    "account"
+                ],
+                "description": "Order-related events for the authenticated owner.",
+                "parameters": [
+                    {
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "in": "query",
+                        "name": "before_ts",
+                        "required": false
+                    },
+                    {
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 500
+                        },
+                        "in": "query",
+                        "name": "limit",
+                        "required": false
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Default Response"
+                    }
+                }
+            }
+        },
+        "/v1/orders/prepare": {
+            "post": {
+                "tags": [
+                    "orders",
+                    "trading"
+                ],
+                "description": "Build an unsigned, simulated, prepared Soroban transaction for the requested trading op. The trader is fixed to the authenticated key owner.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "op"
+                                ],
+                                "oneOf": [
+                                    {
+                                        "type": "object",
+                                        "required": [
+                                            "op",
+                                            "asset",
+                                            "collateral",
+                                            "leverage",
+                                            "direction"
+                                        ],
+                                        "properties": {
+                                            "op": {
+                                                "enum": [
+                                                    "open_position",
+                                                    "open_position_cross"
+                                                ]
+                                            },
+                                            "asset": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 12
+                                            },
+                                            "collateral": {
+                                                "type": "string",
+                                                "pattern": "^[0-9]+$"
+                                            },
+                                            "leverage": {
+                                                "type": "integer",
+                                                "minimum": 1,
+                                                "maximum": 10
+                                            },
+                                            "direction": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "Long",
+                                                    "Short"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "type": "object",
+                                        "required": [
+                                            "op",
+                                            "positionId"
+                                        ],
+                                        "properties": {
+                                            "op": {
+                                                "enum": [
+                                                    "close_position",
+                                                    "close_position_cross"
+                                                ]
+                                            },
+                                            "positionId": {
+                                                "type": [
+                                                    "integer",
+                                                    "string"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "type": "object",
+                                        "required": [
+                                            "op",
+                                            "asset",
+                                            "direction",
+                                            "collateral",
+                                            "leverage",
+                                            "triggerPrice",
+                                            "triggerCondition",
+                                            "slippageToleranceBps"
+                                        ],
+                                        "properties": {
+                                            "op": {
+                                                "enum": [
+                                                    "place_limit_order"
+                                                ]
+                                            },
+                                            "asset": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 12
+                                            },
+                                            "direction": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "Long",
+                                                    "Short"
+                                                ]
+                                            },
+                                            "collateral": {
+                                                "type": "string",
+                                                "pattern": "^[0-9]+$"
+                                            },
+                                            "leverage": {
+                                                "type": "integer",
+                                                "minimum": 1,
+                                                "maximum": 10
+                                            },
+                                            "triggerPrice": {
+                                                "type": "string",
+                                                "pattern": "^[0-9]+$"
+                                            },
+                                            "triggerCondition": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "Above",
+                                                    "Below"
+                                                ]
+                                            },
+                                            "slippageToleranceBps": {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 10000
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "type": "object",
+                                        "required": [
+                                            "op",
+                                            "asset",
+                                            "direction",
+                                            "collateral",
+                                            "leverage",
+                                            "triggerPrice",
+                                            "limitPrice",
+                                            "triggerCondition",
+                                            "slippageToleranceBps"
+                                        ],
+                                        "properties": {
+                                            "op": {
+                                                "enum": [
+                                                    "place_stop_limit_order"
+                                                ]
+                                            },
+                                            "asset": {
+                                                "type": "string",
+                                                "minLength": 1,
+                                                "maxLength": 12
+                                            },
+                                            "direction": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "Long",
+                                                    "Short"
+                                                ]
+                                            },
+                                            "collateral": {
+                                                "type": "string",
+                                                "pattern": "^[0-9]+$"
+                                            },
+                                            "leverage": {
+                                                "type": "integer",
+                                                "minimum": 1,
+                                                "maximum": 10
+                                            },
+                                            "triggerPrice": {
+                                                "type": "string",
+                                                "pattern": "^[0-9]+$"
+                                            },
+                                            "limitPrice": {
+                                                "type": "string",
+                                                "pattern": "^[0-9]+$"
+                                            },
+                                            "triggerCondition": {
+                                                "type": "string",
+                                                "enum": [
+                                                    "Above",
+                                                    "Below"
+                                                ]
+                                            },
+                                            "slippageToleranceBps": {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 10000
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "type": "object",
+                                        "required": [
+                                            "op",
+                                            "positionId",
+                                            "trailingPercentBps",
+                                            "slippageToleranceBps"
+                                        ],
+                                        "properties": {
+                                            "op": {
+                                                "enum": [
+                                                    "place_trailing_stop"
+                                                ]
+                                            },
+                                            "positionId": {
+                                                "type": [
+                                                    "integer",
+                                                    "string"
+                                                ]
+                                            },
+                                            "trailingPercentBps": {
+                                                "type": "integer",
+                                                "minimum": 1,
+                                                "maximum": 10000
+                                            },
+                                            "slippageToleranceBps": {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 10000
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "type": "object",
+                                        "required": [
+                                            "op",
+                                            "positionId",
+                                            "triggerPrice",
+                                            "slippageToleranceBps"
+                                        ],
+                                        "properties": {
+                                            "op": {
+                                                "enum": [
+                                                    "set_stop_loss",
+                                                    "set_take_profit"
+                                                ]
+                                            },
+                                            "positionId": {
+                                                "type": [
+                                                    "integer",
+                                                    "string"
+                                                ]
+                                            },
+                                            "triggerPrice": {
+                                                "type": "string",
+                                                "pattern": "^[0-9]+$"
+                                            },
+                                            "slippageToleranceBps": {
+                                                "type": "integer",
+                                                "minimum": 0,
+                                                "maximum": 10000
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "type": "object",
+                                        "required": [
+                                            "op",
+                                            "orderId"
+                                        ],
+                                        "properties": {
+                                            "op": {
+                                                "enum": [
+                                                    "cancel_order"
+                                                ]
+                                            },
+                                            "orderId": {
+                                                "type": [
+                                                    "integer",
+                                                    "string"
+                                                ]
+                                            }
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "op": {
+                                            "type": "string"
+                                        },
+                                        "trader": {
+                                            "type": "string"
+                                        },
+                                        "xdr": {
+                                            "type": "string"
+                                        },
+                                        "minResourceFee": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "op",
+                                        "trader",
+                                        "xdr"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "error"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "error"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/tx/submit": {
+            "post": {
+                "tags": [
+                    "trading"
+                ],
+                "description": "Submit a signed Soroban transaction (base64 XDR) and poll until SUCCESS, FAILED, or pollTimeoutMs (default 30s). Resubmitting the same XDR is idempotent: a DUPLICATE is polled by hash and the prior result returned. When the RPC queue is full the response is 503 with a Retry-After header. FAILED transactions include the decoded Noether contract error number + name when one is present in the diagnostic events.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "signedXdr"
+                                ],
+                                "properties": {
+                                    "signedXdr": {
+                                        "type": "string",
+                                        "minLength": 4
+                                    },
+                                    "pollTimeoutMs": {
+                                        "type": "integer",
+                                        "minimum": 1000,
+                                        "maximum": 60000
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "hash": {
+                                            "type": "string"
+                                        },
+                                        "status": {
+                                            "type": "string",
+                                            "enum": [
+                                                "SUCCESS",
+                                                "PENDING",
+                                                "FAILED"
+                                            ]
+                                        },
+                                        "ledger": {
+                                            "type": "integer"
+                                        },
+                                        "contractError": {
+                                            "type": [
+                                                "null",
+                                                "object"
+                                            ],
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        },
+                                        "resultXdr": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "hash",
+                                        "status"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "contractError": {
+                                            "type": [
+                                                "null",
+                                                "object"
+                                            ],
+                                            "properties": {
+                                                "code": {
+                                                    "type": "integer"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "error"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "502": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "error"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        },
+                                        "retryable": {
+                                            "type": "boolean"
+                                        },
+                                        "hash": {
+                                            "type": "string"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "error",
+                                        "retryable"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/vaults": {
+            "get": {
+                "tags": [
+                    "vaults"
+                ],
+                "description": "List all vaults the indexer knows about (newest first). Filter by `leader`.",
+                "parameters": [
+                    {
+                        "schema": {
+                            "type": "string",
+                            "minLength": 56,
+                            "maxLength": 56
+                        },
+                        "in": "query",
+                        "name": "leader",
+                        "required": false
+                    },
+                    {
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 200
+                        },
+                        "in": "query",
+                        "name": "limit",
+                        "required": false
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "vaults": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "additionalProperties": true,
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "leader": {
+                                                        "type": "string"
+                                                    },
+                                                    "name": {
+                                                        "type": "string"
+                                                    },
+                                                    "createdAt": {
+                                                        "type": "integer"
+                                                    },
+                                                    "totalUsdc": {
+                                                        "type": "string"
+                                                    },
+                                                    "circulatingShares": {
+                                                        "type": "string"
+                                                    },
+                                                    "hwmNav": {
+                                                        "type": "string"
+                                                    },
+                                                    "realizedPnl": {
+                                                        "type": "string"
+                                                    },
+                                                    "leaderShares": {
+                                                        "type": "string"
+                                                    },
+                                                    "profitShareBps": {
+                                                        "type": "integer"
+                                                    },
+                                                    "paused": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "updatedAt": {
+                                                        "type": "integer"
+                                                    },
+                                                    "depositorCount": {
+                                                        "type": "integer"
+                                                    },
+                                                    "openPositions": {
+                                                        "type": "integer"
+                                                    },
+                                                    "tradeCount": {
+                                                        "type": "integer"
+                                                    },
+                                                    "drawdownBps": {
+                                                        "type": "integer"
+                                                    },
+                                                    "apyBps": {
+                                                        "type": "integer"
+                                                    },
+                                                    "closedTradePnl": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "leader",
+                                                    "name",
+                                                    "createdAt",
+                                                    "totalUsdc",
+                                                    "circulatingShares"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "vaults"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/vaults/{id}": {
+            "get": {
+                "tags": [
+                    "vaults"
+                ],
+                "description": "Detailed view of a single vault.",
+                "parameters": [
+                    {
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "in": "path",
+                        "name": "id",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "properties": {
+                                        "id": {
+                                            "type": "integer"
+                                        },
+                                        "leader": {
+                                            "type": "string"
+                                        },
+                                        "name": {
+                                            "type": "string"
+                                        },
+                                        "createdAt": {
+                                            "type": "integer"
+                                        },
+                                        "totalUsdc": {
+                                            "type": "string"
+                                        },
+                                        "circulatingShares": {
+                                            "type": "string"
+                                        },
+                                        "hwmNav": {
+                                            "type": "string"
+                                        },
+                                        "realizedPnl": {
+                                            "type": "string"
+                                        },
+                                        "leaderShares": {
+                                            "type": "string"
+                                        },
+                                        "profitShareBps": {
+                                            "type": "integer"
+                                        },
+                                        "paused": {
+                                            "type": "boolean"
+                                        },
+                                        "updatedAt": {
+                                            "type": "integer"
+                                        },
+                                        "depositorCount": {
+                                            "type": "integer"
+                                        },
+                                        "openPositions": {
+                                            "type": "integer"
+                                        },
+                                        "tradeCount": {
+                                            "type": "integer"
+                                        },
+                                        "drawdownBps": {
+                                            "type": "integer"
+                                        },
+                                        "apyBps": {
+                                            "type": "integer"
+                                        },
+                                        "closedTradePnl": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "id",
+                                        "leader",
+                                        "name",
+                                        "createdAt",
+                                        "totalUsdc",
+                                        "circulatingShares"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        },
+                                        "id": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "required": [
+                                        "error"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/vaults/{id}/trades": {
+            "get": {
+                "tags": [
+                    "vaults"
+                ],
+                "description": "Leader open/close trade history for a vault, newest first. Each row records a leader_open or leader_close event emitted by the vault_factory contract.",
+                "parameters": [
+                    {
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 200
+                        },
+                        "in": "query",
+                        "name": "limit",
+                        "required": false
+                    },
+                    {
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "in": "query",
+                        "name": "before_ts",
+                        "required": false
+                    },
+                    {
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "in": "path",
+                        "name": "id",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "trades": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "additionalProperties": true,
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "vaultId": {
+                                                        "type": "integer"
+                                                    },
+                                                    "positionId": {
+                                                        "type": "string"
+                                                    },
+                                                    "action": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                            "open",
+                                                            "close"
+                                                        ]
+                                                    },
+                                                    "leader": {
+                                                        "type": "string"
+                                                    },
+                                                    "collateral": {
+                                                        "type": "string"
+                                                    },
+                                                    "pnl": {
+                                                        "type": [
+                                                            "null",
+                                                            "string"
+                                                        ]
+                                                    },
+                                                    "ledger": {
+                                                        "type": "integer"
+                                                    },
+                                                    "ts": {
+                                                        "type": "integer"
+                                                    },
+                                                    "txHash": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "vaultId",
+                                                    "positionId",
+                                                    "action",
+                                                    "leader",
+                                                    "collateral",
+                                                    "ledger",
+                                                    "ts",
+                                                    "txHash"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "trades"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/vaults/{id}/deposits": {
+            "get": {
+                "tags": [
+                    "vaults"
+                ],
+                "description": "Deposit history for a vault, newest first.",
+                "parameters": [
+                    {
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 200
+                        },
+                        "in": "query",
+                        "name": "limit",
+                        "required": false
+                    },
+                    {
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "in": "query",
+                        "name": "before_ts",
+                        "required": false
+                    },
+                    {
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "in": "path",
+                        "name": "id",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "deposits": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "additionalProperties": true,
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "vaultId": {
+                                                        "type": "integer"
+                                                    },
+                                                    "principal": {
+                                                        "type": "string"
+                                                    },
+                                                    "amount": {
+                                                        "type": "string"
+                                                    },
+                                                    "shares": {
+                                                        "type": "string"
+                                                    },
+                                                    "ledger": {
+                                                        "type": "integer"
+                                                    },
+                                                    "ts": {
+                                                        "type": "integer"
+                                                    },
+                                                    "txHash": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "vaultId",
+                                                    "principal",
+                                                    "amount",
+                                                    "ledger",
+                                                    "ts",
+                                                    "txHash"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "deposits"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/vaults/{id}/withdraws": {
+            "get": {
+                "tags": [
+                    "vaults"
+                ],
+                "description": "Withdraw history for a vault, newest first.",
+                "parameters": [
+                    {
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 200
+                        },
+                        "in": "query",
+                        "name": "limit",
+                        "required": false
+                    },
+                    {
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "in": "query",
+                        "name": "before_ts",
+                        "required": false
+                    },
+                    {
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "in": "path",
+                        "name": "id",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "withdraws": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "additionalProperties": true,
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "vaultId": {
+                                                        "type": "integer"
+                                                    },
+                                                    "principal": {
+                                                        "type": "string"
+                                                    },
+                                                    "amount": {
+                                                        "type": "string"
+                                                    },
+                                                    "shares": {
+                                                        "type": "string"
+                                                    },
+                                                    "ledger": {
+                                                        "type": "integer"
+                                                    },
+                                                    "ts": {
+                                                        "type": "integer"
+                                                    },
+                                                    "txHash": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "vaultId",
+                                                    "principal",
+                                                    "amount",
+                                                    "ledger",
+                                                    "ts",
+                                                    "txHash"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "withdraws"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/vaults/{id}/fee-claims": {
+            "get": {
+                "tags": [
+                    "vaults"
+                ],
+                "description": "Leader profit-share claim history for a vault.",
+                "parameters": [
+                    {
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 200
+                        },
+                        "in": "query",
+                        "name": "limit",
+                        "required": false
+                    },
+                    {
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "in": "query",
+                        "name": "before_ts",
+                        "required": false
+                    },
+                    {
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "in": "path",
+                        "name": "id",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "feeClaims": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "additionalProperties": true,
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "vaultId": {
+                                                        "type": "integer"
+                                                    },
+                                                    "principal": {
+                                                        "type": "string"
+                                                    },
+                                                    "amount": {
+                                                        "type": "string"
+                                                    },
+                                                    "shares": {
+                                                        "type": "string"
+                                                    },
+                                                    "ledger": {
+                                                        "type": "integer"
+                                                    },
+                                                    "ts": {
+                                                        "type": "integer"
+                                                    },
+                                                    "txHash": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "vaultId",
+                                                    "principal",
+                                                    "amount",
+                                                    "ledger",
+                                                    "ts",
+                                                    "txHash"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "feeClaims"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/referral/lookup": {
+            "get": {
+                "tags": [
+                    "referral"
+                ],
+                "description": "Resolve a referral code to its referrer (public).",
+                "parameters": [
+                    {
+                        "schema": {
+                            "type": "string",
+                            "minLength": 3,
+                            "maxLength": 16
+                        },
+                        "in": "query",
+                        "name": "code",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "properties": {
+                                        "referrer": {
+                                            "type": "string"
+                                        },
+                                        "code": {
+                                            "type": "string"
+                                        },
+                                        "createdAt": {
+                                            "type": "integer"
+                                        },
+                                        "referredCount": {
+                                            "type": "integer"
+                                        },
+                                        "totalVolumeGenerated": {
+                                            "type": "string"
+                                        },
+                                        "totalEarned": {
+                                            "type": "string"
+                                        },
+                                        "claimable": {
+                                            "type": "string"
+                                        },
+                                        "updatedAt": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "required": [
+                                        "referrer",
+                                        "code"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        },
+                                        "code": {
+                                            "type": "string"
+                                        },
+                                        "address": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "error"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/referral/info": {
+            "get": {
+                "tags": [
+                    "referral"
+                ],
+                "description": "Look up a referrer profile by Stellar address (public). Returns the row from the referrers projection table, or 404 if the address has never registered a code. Same shape as /v1/referral/me, just queried by address instead of by authed owner.",
+                "parameters": [
+                    {
+                        "schema": {
+                            "type": "string",
+                            "minLength": 56,
+                            "maxLength": 56
+                        },
+                        "in": "query",
+                        "name": "address",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "self": {
+                                            "type": "object",
+                                            "additionalProperties": true,
+                                            "properties": {
+                                                "referrer": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "createdAt": {
+                                                    "type": "integer"
+                                                },
+                                                "referredCount": {
+                                                    "type": "integer"
+                                                },
+                                                "totalVolumeGenerated": {
+                                                    "type": "string"
+                                                },
+                                                "totalEarned": {
+                                                    "type": "string"
+                                                },
+                                                "claimable": {
+                                                    "type": "string"
+                                                },
+                                                "updatedAt": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "referrer",
+                                                "code"
+                                            ]
+                                        },
+                                        "binding": {
+                                            "type": [
+                                                "null",
+                                                "object"
+                                            ],
+                                            "additionalProperties": true,
+                                            "properties": {
+                                                "referee": {
+                                                    "type": "string"
+                                                },
+                                                "referrer": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "boundAt": {
+                                                    "type": "integer"
+                                                },
+                                                "txHash": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "self"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        },
+                                        "code": {
+                                            "type": "string"
+                                        },
+                                        "address": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "error"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/referral/me": {
+            "get": {
+                "tags": [
+                    "referral",
+                    "account"
+                ],
+                "description": "Returns the referral state of the authenticated owner \u2014 both their own referrer row (if any) and the binding they hold as a referee (if any).",
+                "responses": {
+                    "200": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "self": {
+                                            "type": [
+                                                "null",
+                                                "object"
+                                            ],
+                                            "additionalProperties": true,
+                                            "properties": {
+                                                "referrer": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "createdAt": {
+                                                    "type": "integer"
+                                                },
+                                                "referredCount": {
+                                                    "type": "integer"
+                                                },
+                                                "totalVolumeGenerated": {
+                                                    "type": "string"
+                                                },
+                                                "totalEarned": {
+                                                    "type": "string"
+                                                },
+                                                "claimable": {
+                                                    "type": "string"
+                                                },
+                                                "updatedAt": {
+                                                    "type": "integer"
+                                                }
+                                            }
+                                        },
+                                        "binding": {
+                                            "type": [
+                                                "null",
+                                                "object"
+                                            ],
+                                            "additionalProperties": true,
+                                            "properties": {
+                                                "referee": {
+                                                    "type": "string"
+                                                },
+                                                "referrer": {
+                                                    "type": "string"
+                                                },
+                                                "code": {
+                                                    "type": "string"
+                                                },
+                                                "boundAt": {
+                                                    "type": "integer"
+                                                },
+                                                "txHash": {
+                                                    "type": "string"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/referral/me/trades": {
+            "get": {
+                "tags": [
+                    "referral",
+                    "account"
+                ],
+                "description": "Trades the authenticated owner has earned referral fees on.",
+                "parameters": [
+                    {
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 200
+                        },
+                        "in": "query",
+                        "name": "limit",
+                        "required": false
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "trades": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "additionalProperties": true,
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "referee": {
+                                                        "type": "string"
+                                                    },
+                                                    "referrer": {
+                                                        "type": "string"
+                                                    },
+                                                    "originalFee": {
+                                                        "type": "string"
+                                                    },
+                                                    "discount": {
+                                                        "type": "string"
+                                                    },
+                                                    "payout": {
+                                                        "type": "string"
+                                                    },
+                                                    "ledger": {
+                                                        "type": "integer"
+                                                    },
+                                                    "ts": {
+                                                        "type": "integer"
+                                                    },
+                                                    "txHash": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "referee",
+                                                    "referrer",
+                                                    "ledger",
+                                                    "ts",
+                                                    "txHash"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "trades"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/referral/me/claims": {
+            "get": {
+                "tags": [
+                    "referral",
+                    "account"
+                ],
+                "description": "Claim history for the authenticated owner as referrer.",
+                "parameters": [
+                    {
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 200
+                        },
+                        "in": "query",
+                        "name": "limit",
+                        "required": false
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "claims": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "additionalProperties": true,
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "referrer": {
+                                                        "type": "string"
+                                                    },
+                                                    "amount": {
+                                                        "type": "string"
+                                                    },
+                                                    "ledger": {
+                                                        "type": "integer"
+                                                    },
+                                                    "ts": {
+                                                        "type": "integer"
+                                                    },
+                                                    "txHash": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "referrer",
+                                                    "amount",
+                                                    "ledger",
+                                                    "ts",
+                                                    "txHash"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "claims"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/positions/open": {
+            "get": {
+                "tags": [
+                    "positions"
+                ],
+                "description": "Currently open positions on the market, optionally filtered by trader. Materialized from position_opened minus position_closed/liquidated events. Use this to avoid iterating every on-chain position id (slow for clients who only care about one trader, like the /trade leader-mode panel).",
+                "responses": {
+                    "200": {
+                        "description": "Default Response"
+                    }
+                }
+            }
+        },
+        "/v1/account/volume": {
+            "get": {
+                "tags": [
+                    "account"
+                ],
+                "description": "Trailing 14-day traded notional for a wallet (public). Sums position size over position_opened and position_closed events in the window \u2014 mirrors the market contract's rolling VolumeRecord used for fee tiers (liquidations record no volume). Feeds the OrderPanel fee-tier preview.",
+                "parameters": [
+                    {
+                        "schema": {
+                            "type": "string",
+                            "minLength": 56,
+                            "maxLength": 56
+                        },
+                        "in": "query",
+                        "name": "address",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "address": {
+                                            "type": "string"
+                                        },
+                                        "volume14d": {
+                                            "type": "string",
+                                            "description": "i128 decimal string, 7-decimal USDC notional"
+                                        }
+                                    },
+                                    "required": [
+                                        "address",
+                                        "volume14d"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/trades": {
+            "get": {
+                "tags": [
+                    "markets"
+                ],
+                "description": "Recent realized trades (position_closed / position_liquidated events), newest first. Size, asset, direction, and entry price are joined from the matching position_opened event; null when the open predates the indexer history.",
+                "parameters": [
+                    {
+                        "schema": {
+                            "type": "string",
+                            "minLength": 56,
+                            "maxLength": 56
+                        },
+                        "in": "query",
+                        "name": "trader",
+                        "required": false
+                    },
+                    {
+                        "schema": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 12
+                        },
+                        "in": "query",
+                        "name": "asset",
+                        "required": false
+                    },
+                    {
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        },
+                        "in": "query",
+                        "name": "before_ts",
+                        "required": false
+                    },
+                    {
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 200
+                        },
+                        "in": "query",
+                        "name": "limit",
+                        "required": false
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "trades": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "positionId": {
+                                                        "type": "integer"
+                                                    },
+                                                    "trader": {
+                                                        "type": "string"
+                                                    },
+                                                    "kind": {
+                                                        "type": "string",
+                                                        "enum": [
+                                                            "close",
+                                                            "liquidation"
+                                                        ]
+                                                    },
+                                                    "asset": {
+                                                        "type": [
+                                                            "null",
+                                                            "string"
+                                                        ]
+                                                    },
+                                                    "direction": {
+                                                        "type": [
+                                                            "null",
+                                                            "integer"
+                                                        ]
+                                                    },
+                                                    "size": {
+                                                        "type": [
+                                                            "null",
+                                                            "string"
+                                                        ]
+                                                    },
+                                                    "entryPrice": {
+                                                        "type": [
+                                                            "null",
+                                                            "string"
+                                                        ]
+                                                    },
+                                                    "closePrice": {
+                                                        "type": [
+                                                            "null",
+                                                            "string"
+                                                        ]
+                                                    },
+                                                    "pnl": {
+                                                        "type": [
+                                                            "null",
+                                                            "string"
+                                                        ]
+                                                    },
+                                                    "ledger": {
+                                                        "type": "integer"
+                                                    },
+                                                    "ts": {
+                                                        "type": "integer"
+                                                    },
+                                                    "txHash": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "positionId",
+                                                    "trader",
+                                                    "kind",
+                                                    "ledger",
+                                                    "ts",
+                                                    "txHash"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "trades"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/candles": {
+            "get": {
+                "tags": [
+                    "markets"
+                ],
+                "description": "OHLC candles for an asset, oldest-first. Native Noeracle candles built by the indexer aggregator; transparently falls back to Binance reference candles when the venue has none yet for that asset/interval (see the \"source\" field).",
+                "parameters": [
+                    {
+                        "schema": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 12
+                        },
+                        "in": "query",
+                        "name": "asset",
+                        "required": true
+                    },
+                    {
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "1m",
+                                "5m",
+                                "15m",
+                                "1h",
+                                "4h",
+                                "1d",
+                                "1w"
+                            ]
+                        },
+                        "in": "query",
+                        "name": "interval",
+                        "required": false
+                    },
+                    {
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        },
+                        "in": "query",
+                        "name": "limit",
+                        "required": false
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "candles": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "time": {
+                                                        "type": "integer"
+                                                    },
+                                                    "open": {
+                                                        "type": "number"
+                                                    },
+                                                    "high": {
+                                                        "type": "number"
+                                                    },
+                                                    "low": {
+                                                        "type": "number"
+                                                    },
+                                                    "close": {
+                                                        "type": "number"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "time",
+                                                    "open",
+                                                    "high",
+                                                    "low",
+                                                    "close"
+                                                ]
+                                            }
+                                        },
+                                        "source": {
+                                            "type": "string",
+                                            "enum": [
+                                                "noeracle",
+                                                "binance"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "candles",
+                                        "source"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/v1/leaderboard": {
+            "get": {
+                "tags": [
+                    "markets"
+                ],
+                "description": "Trader leaderboard from the indexer projections. Rank by lifetime realized PnL (`sort=pnl`, default) or traded notional (`sort=volume`). Durable replacement for the web cron that re-scanned Horizon.",
+                "parameters": [
+                    {
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "pnl",
+                                "volume"
+                            ]
+                        },
+                        "in": "query",
+                        "name": "sort",
+                        "required": false
+                    },
+                    {
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 200
+                        },
+                        "in": "query",
+                        "name": "limit",
+                        "required": false
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Default Response",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "sort": {
+                                            "type": "string",
+                                            "enum": [
+                                                "pnl",
+                                                "volume"
+                                            ]
+                                        },
+                                        "leaders": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "trader": {
+                                                        "type": "string"
+                                                    },
+                                                    "pnl": {
+                                                        "type": "string"
+                                                    },
+                                                    "volume": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "trader",
+                                                    "pnl",
+                                                    "volume"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "sort",
+                                        "leaders"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "servers": [
+        {
+            "url": "http://localhost:4000"
+        }
+    ]
+}
