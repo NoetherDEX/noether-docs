@@ -2,9 +2,20 @@ import { DocsThemeConfig, useConfig } from 'nextra-theme-docs'
 
 const config: DocsThemeConfig = {
   logo: (
-    <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-      <img src="/logo.svg" alt="Noether" style={{ height: 24 }} />
-      <span style={{ fontWeight: 700 }}>Noether Docs</span>
+    <span
+      style={{
+        fontWeight: 800,
+        fontSize: '1.3rem',
+        letterSpacing: '-0.02em',
+        background:
+          'linear-gradient(90deg, #ef4444, #f97316, #eab308, #22c55e, #3b82f6, #8b5cf6)',
+        WebkitBackgroundClip: 'text',
+        backgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+        color: 'transparent'
+      }}
+    >
+      Noether
     </span>
   ),
   project: {
