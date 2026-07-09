@@ -1,4 +1,4 @@
-import { DocsThemeConfig } from 'nextra-theme-docs'
+import { DocsThemeConfig, useConfig } from 'nextra-theme-docs'
 
 const config: DocsThemeConfig = {
   logo: (
@@ -26,24 +26,25 @@ const config: DocsThemeConfig = {
       </a>
     )
   },
-  head: (
-    <>
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-      <meta
-        name="description"
-        content="User guides and developer documentation for Noether — the decentralized perpetual futures exchange on Stellar."
-      />
-      <meta property="og:title" content="Noether Documentation" />
-      <meta
-        property="og:description"
-        content="User guides and developer documentation for Noether — the decentralized perpetual futures exchange on Stellar."
-      />
-      <meta property="og:image" content="/og-image.png" />
-      <meta name="twitter:card" content="summary_large_image" />
-      <meta name="twitter:site" content="@Noetherdex" />
-    </>
-  ),
+  head: function Head() {
+    const { title } = useConfig()
+    const pageTitle = title ? `${title} – Noether Docs` : 'Noether Documentation'
+    const description =
+      'User guides and developer documentation for Noether — the decentralized perpetual futures exchange on Stellar.'
+    return (
+      <>
+        <title>{pageTitle}</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <meta name="description" content={description} />
+        <meta property="og:title" content={pageTitle} />
+        <meta property="og:description" content={description} />
+        <meta property="og:image" content="/og-image.png" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:site" content="@Noetherdex" />
+      </>
+    )
+  },
   footer: {
     content: (
       <span>
