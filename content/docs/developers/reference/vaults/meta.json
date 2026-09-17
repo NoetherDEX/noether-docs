@@ -1,0 +1,11 @@
+{
+  "title": "Vaults",
+  "pages": [
+    "get-vaults",
+    "get-vaults-by-id",
+    "get-vaults-by-id-trades",
+    "get-vaults-by-id-deposits",
+    "get-vaults-by-id-withdraws",
+    "get-vaults-by-id-fee-claims"
+  ]
+}

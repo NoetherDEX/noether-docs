@@ -1,0 +1,30 @@
+---
+title: Security and audits
+description: Where Noether stands on audits, how to report a vulnerability, and what is in scope. Testnet today; the policy takes full effect for real value at mainnet.
+---
+
+## Status
+
+Noether runs on Stellar **testnet** with test funds only. The contracts have not yet been through an external audit; one is being arranged through the Stellar ecosystem's audit programme ahead of mainnet, and the report will be linked from this page when it is published.
+
+Every contract is open source in the [main repository](https://github.com/NoetherDEX/noether), and every deployed address on the [contracts page](/protocol/contracts) can be checked against that source on a block explorer.
+
+## Reporting a vulnerability
+
+Do not open a public issue for a security bug. Email **security@noether.exchange** (or message [@Noetherdex](https://x.com/Noetherdex)) with:
+
+- a description and impact assessment,
+- reproduction steps or a proof of concept (a testnet PoC is ideal),
+- the affected contract or service, with the commit or address.
+
+Reports are acknowledged within 72 hours and triaged within five business days. Please allow a reasonable window for remediation before public disclosure. For an exploit in progress, also contact the [SEAL 911](https://www.seal911.org) whitehat hotline.
+
+## Scope
+
+In scope: the on-chain contracts (`market`, `vault`, `vault_factory`, `referral`, `noether_router`, `noeracle_shim`, `noether_common`), the API gateway, the indexer, the keeper, and the web app's transaction-construction path. The Noeracle oracle is a related project; oracle write-path issues are in scope and gate mainnet.
+
+Out of scope: findings that require a compromised device or wallet, social engineering, denial of service against the public testnet RPC, and anything already listed as a known issue in the repository's audit notes.
+
+## Rewards
+
+Until Noether lists on a bug-bounty platform at meaningful value locked, rewards are discretionary and scaled to severity and real impact. The full policy is the repository's [SECURITY.md](https://github.com/NoetherDEX/noether/blob/main/SECURITY.md).

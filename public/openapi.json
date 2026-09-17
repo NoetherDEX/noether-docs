@@ -1,7 +1,7 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "Noether API",
+    "title": "Noether gateway API",
     "description": "Public REST + WebSocket gateway for the Noether decentralized perpetual exchange on Stellar / Soroban.",
     "version": "0.1.0"
   },
@@ -14,12 +14,14 @@
         "tags": [
           "system"
         ],
-        "description": "Liveness + config probe. Reports uptime, the resolved contract addresses this process actually serves (env override vs baked manifest \u2014 D-4), and how stale the indexer read-side is (age of the last indexed ledger).",
+        "description": "Liveness + config probe. Reports uptime, the resolved contract addresses this process actually serves (env override vs baked manifest — D-4), and how stale the indexer read-side is (age of the last indexed ledger).",
         "responses": {
           "200": {
             "description": "Default Response"
           }
-        }
+        },
+        "operationId": "get-health",
+        "summary": "GET /v1/health"
       }
     },
     "/v1/markets/stats": {
@@ -27,7 +29,7 @@
         "tags": [
           "markets"
         ],
-        "description": "Per-asset open interest (long / short / net, from the open-positions projection) and 24h traded volume (position_opened + realized position_closed / liquidated notional). All amounts are i128 decimal strings with 7-decimal USDC precision.",
+        "description": "Per-asset open interest (long / short / net, from the open-positions projection) and 24h traded volume (position_opened + realized position_closed / liquidated notional). All amounts are i128 decimal strings with 7-decimal USDC precision. The solvency object carries market-scoped lifetime bad debt (L0-2): how much the insurance buffer absorbed vs how much fell through to LP NAV. Each row may carry a `capacity` block and the response a `pool` block (L1-13 headroom, chain-read; omitted — never zeroed — when the read failed) and a `custody` block (the keeper's last market-custody self-report; omitted until reported).",
         "responses": {
           "200": {
             "description": "Default Response",
@@ -58,6 +60,83 @@
                           },
                           "volume24h": {
                             "type": "string"
+                          },
+                          "capacity": {
+                            "type": "object",
+                            "description": "Largest notional the vault accepts for a new long/short on this market right now, with the exact chain inputs behind it (vault caps + market AssetExposure). Advisory: the contract stays the authority (#82 / #89). Omitted when the read failed.",
+                            "properties": {
+                              "headroomLong": {
+                                "type": "string"
+                              },
+                              "headroomShort": {
+                                "type": "string"
+                              },
+                              "bindingLong": {
+                                "type": "string",
+                                "enum": [
+                                  "aggregate",
+                                  "side",
+                                  "skew",
+                                  "liquidity",
+                                  "maxPosition"
+                                ]
+                              },
+                              "bindingShort": {
+                                "type": "string",
+                                "enum": [
+                                  "aggregate",
+                                  "side",
+                                  "skew",
+                                  "liquidity",
+                                  "maxPosition"
+                                ]
+                              },
+                              "oiLong": {
+                                "type": "string"
+                              },
+                              "oiShort": {
+                                "type": "string"
+                              },
+                              "netSkew": {
+                                "type": "string"
+                              },
+                              "sideCap": {
+                                "type": "string"
+                              },
+                              "skewCap": {
+                                "type": "string"
+                              },
+                              "assetCapBps": {
+                                "type": "integer"
+                              },
+                              "capAbs": {
+                                "type": "string"
+                              },
+                              "skewCapBps": {
+                                "type": "integer"
+                              },
+                              "maxPositionSize": {
+                                "type": [
+                                  "null",
+                                  "string"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "headroomLong",
+                              "headroomShort",
+                              "bindingLong",
+                              "bindingShort",
+                              "oiLong",
+                              "oiShort",
+                              "netSkew",
+                              "sideCap",
+                              "skewCap",
+                              "assetCapBps",
+                              "capAbs",
+                              "skewCapBps",
+                              "maxPositionSize"
+                            ]
                           }
                         },
                         "required": [
@@ -69,16 +148,149 @@
                           "volume24h"
                         ]
                       }
+                    },
+                    "pool": {
+                      "type": "object",
+                      "description": "Vault-wide capacity (L1-13): AUM, reserved payouts, the aggregate cap and the headroom left for new positions on ANY market. Omitted when the read failed; stale:true when served from the last good snapshot after a failed refresh.",
+                      "properties": {
+                        "aum": {
+                          "type": "string"
+                        },
+                        "reservedPayout": {
+                          "type": "string"
+                        },
+                        "usdcBalance": {
+                          "type": "string"
+                        },
+                        "shortfallReserve": {
+                          "type": "string"
+                        },
+                        "reserveCapBps": {
+                          "type": "integer"
+                        },
+                        "reserveCap": {
+                          "type": "string"
+                        },
+                        "aggregateHeadroom": {
+                          "type": "string"
+                        },
+                        "aggregateBinding": {
+                          "type": "string",
+                          "enum": [
+                            "aggregate",
+                            "liquidity"
+                          ]
+                        },
+                        "asOfLedger": {
+                          "type": [
+                            "null",
+                            "integer"
+                          ]
+                        },
+                        "ts": {
+                          "type": "integer"
+                        },
+                        "stale": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "aum",
+                        "reservedPayout",
+                        "usdcBalance",
+                        "shortfallReserve",
+                        "reserveCapBps",
+                        "reserveCap",
+                        "aggregateHeadroom",
+                        "aggregateBinding",
+                        "asOfLedger",
+                        "ts",
+                        "stale"
+                      ]
+                    },
+                    "custody": {
+                      "type": "object",
+                      "description": "Market custody invariant as last reported by the keeper: the USDC the market contract holds vs the collateral it holds for traders (live isolated collateral + open cross-position collateral + cross pools + pending entry-order escrow). deficit must be \"0\"; anything else means payouts are about to fail (#10). Omitted when the keeper has never reported; stale:true when the last report is older than 5 minutes.",
+                      "properties": {
+                        "marketUsdcBalance": {
+                          "type": "string"
+                        },
+                        "trackedCustody": {
+                          "type": "string"
+                        },
+                        "isolatedCollateral": {
+                          "type": "string"
+                        },
+                        "crossPositionCollateral": {
+                          "type": "string",
+                          "description": "Collateral locked in open cross positions. Absent from keeper builds before 2026-09-02."
+                        },
+                        "crossBalances": {
+                          "type": "string"
+                        },
+                        "orderEscrow": {
+                          "type": "string"
+                        },
+                        "deficit": {
+                          "type": "string"
+                        },
+                        "positions": {
+                          "type": "integer"
+                        },
+                        "asOf": {
+                          "type": "integer"
+                        },
+                        "ageMs": {
+                          "type": "integer"
+                        },
+                        "stale": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "marketUsdcBalance",
+                        "trackedCustody",
+                        "isolatedCollateral",
+                        "crossBalances",
+                        "orderEscrow",
+                        "deficit",
+                        "positions",
+                        "asOf",
+                        "ageMs",
+                        "stale"
+                      ]
+                    },
+                    "solvency": {
+                      "type": "object",
+                      "properties": {
+                        "cumulativeBadDebtCovered": {
+                          "type": "string"
+                        },
+                        "cumulativeBadDebtLpAbsorbed": {
+                          "type": "string"
+                        },
+                        "badDebtEvents": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "cumulativeBadDebtCovered",
+                        "cumulativeBadDebtLpAbsorbed",
+                        "badDebtEvents"
+                      ]
                     }
                   },
                   "required": [
-                    "stats"
+                    "stats",
+                    "solvency"
                   ]
                 }
               }
             }
           }
-        }
+        },
+        "operationId": "get-markets-stats",
+        "summary": "GET /v1/markets/stats"
       }
     },
     "/v1/markets": {
@@ -157,7 +369,9 @@
               }
             }
           }
-        }
+        },
+        "operationId": "get-markets",
+        "summary": "GET /v1/markets"
       }
     },
     "/v1/markets/{asset}": {
@@ -257,7 +471,9 @@
               }
             }
           }
-        }
+        },
+        "operationId": "get-markets-by-asset",
+        "summary": "GET /v1/markets/{asset}"
       }
     },
     "/v1/oracle/prices": {
@@ -308,7 +524,9 @@
               }
             }
           }
-        }
+        },
+        "operationId": "get-oracle-prices",
+        "summary": "GET /v1/oracle/prices"
       }
     },
     "/v1/markets/{asset}/price": {
@@ -380,13 +598,107 @@
               }
             }
           }
-        }
+        },
+        "operationId": "get-markets-by-asset-price",
+        "summary": "GET /v1/markets/{asset}/price"
+      }
+    },
+    "/v1/oracle/heartbeat": {
+      "post": {
+        "tags": [
+          "oracle"
+        ],
+        "description": "Keeper status ingest (shared-secret header x-keeper-secret). Disabled without KEEPER_HEARTBEAT_SECRET.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Default Response"
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "operationId": "post-oracle-heartbeat",
+        "summary": "POST /v1/oracle/heartbeat"
+      }
+    },
+    "/v1/oracle/health": {
+      "get": {
+        "tags": [
+          "oracle"
+        ],
+        "description": "Per-source oracle health: on-chain price age per asset + the keeper self-report. Point uptime monitoring here. Pass strict=1 to get 503 instead of 200 when the status is not ok, so a status-code monitor can page.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "name": "strict",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          }
+        },
+        "operationId": "get-oracle-health",
+        "summary": "GET /v1/oracle/health"
       }
     },
     "/v1/events": {
       "get": {
         "tags": [
-          "events"
+          "system"
         ],
         "description": "Raw decoded contract events captured by the indexer. Phase 3 surfaces this directly; trade and candle projections land in Phase 3.1.",
         "parameters": [
@@ -498,7 +810,9 @@
               }
             }
           }
-        }
+        },
+        "operationId": "get-events",
+        "summary": "GET /v1/events"
       }
     },
     "/v1/keys/beta-status": {
@@ -506,7 +820,7 @@
         "tags": [
           "keys"
         ],
-        "description": "Public \u2014 reports whether key issuance is currently gated to a closed-beta allowlist, and optionally whether the supplied address is on it.",
+        "description": "Public — reports whether key issuance is currently gated to a closed-beta allowlist, and optionally whether the supplied address is on it.",
         "parameters": [
           {
             "schema": {
@@ -542,7 +856,9 @@
               }
             }
           }
-        }
+        },
+        "operationId": "get-keys-beta-status",
+        "summary": "GET /v1/keys/beta-status"
       }
     },
     "/v1/keys/challenge": {
@@ -594,7 +910,9 @@
               }
             }
           }
-        }
+        },
+        "operationId": "post-keys-challenge",
+        "summary": "POST /v1/keys/challenge"
       }
     },
     "/v1/keys": {
@@ -714,7 +1032,9 @@
               }
             }
           }
-        }
+        },
+        "operationId": "post-keys",
+        "summary": "POST /v1/keys"
       },
       "get": {
         "tags": [
@@ -782,7 +1102,9 @@
               }
             }
           }
-        }
+        },
+        "operationId": "get-keys",
+        "summary": "GET /v1/keys"
       }
     },
     "/v1/keys/{keyId}": {
@@ -842,7 +1164,9 @@
               }
             }
           }
-        }
+        },
+        "operationId": "delete-keys-by-keyId",
+        "summary": "DELETE /v1/keys/{keyId}"
       }
     },
     "/v1/account/me": {
@@ -855,7 +1179,9 @@
           "200": {
             "description": "Default Response"
           }
-        }
+        },
+        "operationId": "get-account-me",
+        "summary": "GET /v1/account/me"
       }
     },
     "/v1/account/me/events": {
@@ -897,7 +1223,9 @@
           "200": {
             "description": "Default Response"
           }
-        }
+        },
+        "operationId": "get-account-me-events",
+        "summary": "GET /v1/account/me/events"
       }
     },
     "/v1/account/me/positions": {
@@ -910,7 +1238,9 @@
           "200": {
             "description": "Default Response"
           }
-        }
+        },
+        "operationId": "get-account-me-positions",
+        "summary": "GET /v1/account/me/positions"
       }
     },
     "/v1/account/me/orders": {
@@ -944,13 +1274,118 @@
           "200": {
             "description": "Default Response"
           }
-        }
+        },
+        "operationId": "get-account-me-orders",
+        "summary": "GET /v1/account/me/orders"
+      }
+    },
+    "/v1/orders/open": {
+      "get": {
+        "tags": [
+          "trading"
+        ],
+        "description": "Orders placed on the current market, folded to open / executed / cancelled, newest first. order_placed events carry only (orderId, trader, triggerPrice) — hydrate detail on-chain via get_order for the ids returned. Default status=open; status=all includes resolved orders (order history). Use this to avoid iterating every on-chain order id.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 56,
+              "maxLength": 56
+            },
+            "in": "query",
+            "name": "trader",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "all"
+              ]
+            },
+            "in": "query",
+            "name": "status",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "orders": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "orderId": {
+                            "type": "integer"
+                          },
+                          "trader": {
+                            "type": "string"
+                          },
+                          "triggerPrice": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "open",
+                              "executed",
+                              "cancelled"
+                            ]
+                          },
+                          "ledger": {
+                            "type": "integer"
+                          },
+                          "ts": {
+                            "type": "integer"
+                          },
+                          "txHash": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "orderId",
+                          "trader",
+                          "triggerPrice",
+                          "status",
+                          "ledger",
+                          "ts",
+                          "txHash"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "orders"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "get-orders-open",
+        "summary": "GET /v1/orders/open"
       }
     },
     "/v1/orders/prepare": {
       "post": {
         "tags": [
-          "orders",
           "trading"
         ],
         "description": "Build an unsigned, simulated, prepared Soroban transaction for the requested trading op. The trader is fixed to the authenticated key owner.",
@@ -1078,6 +1513,18 @@
                         "type": "integer",
                         "minimum": 0,
                         "maximum": 10000
+                      },
+                      "timeInForce": {
+                        "type": "integer",
+                        "enum": [
+                          0,
+                          1,
+                          2
+                        ],
+                        "description": "0=GTC (default), 1=IOC, 2=PostOnly"
+                      },
+                      "reduceOnly": {
+                        "type": "boolean"
                       }
                     }
                   },
@@ -1140,6 +1587,18 @@
                         "type": "integer",
                         "minimum": 0,
                         "maximum": 10000
+                      },
+                      "timeInForce": {
+                        "type": "integer",
+                        "enum": [
+                          0,
+                          1,
+                          2
+                        ],
+                        "description": "0=GTC (default), 1=IOC, 2=PostOnly"
+                      },
+                      "reduceOnly": {
+                        "type": "boolean"
                       }
                     }
                   },
@@ -1186,7 +1645,37 @@
                     "properties": {
                       "op": {
                         "enum": [
-                          "set_stop_loss",
+                          "set_stop_loss"
+                        ]
+                      },
+                      "positionId": {
+                        "type": [
+                          "integer",
+                          "string"
+                        ]
+                      },
+                      "triggerPrice": {
+                        "type": "string",
+                        "pattern": "^[0-9]+$"
+                      },
+                      "slippageToleranceBps": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 10000
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "op",
+                      "positionId",
+                      "triggerPrice",
+                      "slippageToleranceBps"
+                    ],
+                    "properties": {
+                      "op": {
+                        "enum": [
                           "set_take_profit"
                         ]
                       },
@@ -1204,6 +1693,11 @@
                         "type": "integer",
                         "minimum": 0,
                         "maximum": 10000
+                      },
+                      "limitPrice": {
+                        "type": "string",
+                        "pattern": "^[0-9]+$",
+                        "description": "Optional take-limit price (7-decimal); omit or \"0\" for a plain take-profit"
                       }
                     }
                   },
@@ -1306,7 +1800,9 @@
               }
             }
           }
-        }
+        },
+        "operationId": "post-orders-prepare",
+        "summary": "POST /v1/orders/prepare"
       }
     },
     "/v1/tx/submit": {
@@ -1314,7 +1810,7 @@
         "tags": [
           "trading"
         ],
-        "description": "Submit a signed Soroban transaction (base64 XDR) and poll until SUCCESS, FAILED, or pollTimeoutMs (default 30s). Resubmitting the same XDR is idempotent: a DUPLICATE is polled by hash and the prior result returned. When the RPC queue is full the response is 503 with a Retry-After header. FAILED transactions include the decoded Noether contract error number + name when one is present in the diagnostic events.",
+        "description": "Submit a signed Soroban transaction (base64 XDR) and poll until SUCCESS, FAILED, or pollTimeoutMs (default 30s). Resubmitting the same XDR is idempotent: a DUPLICATE is polled by hash and the prior result returned. When the RPC queue is full the response is 503 with a Retry-After header. FAILED transactions include the decoded Noether contract error number + name when one is present in the diagnostic events, and `hostError` when the host aborted outside contract code (a resource overrun reports type \"budget\", code \"exceeded_limit\") — previously such failures carried no detail.",
         "requestBody": {
           "required": true,
           "content": {
@@ -1375,6 +1871,26 @@
                         }
                       }
                     },
+                    "hostError": {
+                      "type": [
+                        "null",
+                        "object"
+                      ],
+                      "properties": {
+                        "type": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "txResultCode": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
                     "resultXdr": {
                       "type": "string"
                     }
@@ -1414,6 +1930,26 @@
                           "type": "string"
                         }
                       }
+                    },
+                    "hostError": {
+                      "type": [
+                        "null",
+                        "object"
+                      ],
+                      "properties": {
+                        "type": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "txResultCode": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
                     }
                   },
                   "required": [
@@ -1474,7 +2010,9 @@
               }
             }
           }
-        }
+        },
+        "operationId": "post-tx-submit",
+        "summary": "POST /v1/tx/submit"
       }
     },
     "/v1/vaults": {
@@ -1546,6 +2084,12 @@
                           "leaderShares": {
                             "type": "string"
                           },
+                          "navFull": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
                           "profitShareBps": {
                             "type": "integer"
                           },
@@ -1570,6 +2114,13 @@
                           "apyBps": {
                             "type": "integer"
                           },
+                          "apyKind": {
+                            "type": "string",
+                            "enum": [
+                              "annualized",
+                              "inception"
+                            ]
+                          },
                           "closedTradePnl": {
                             "type": "string"
                           }
@@ -1592,7 +2143,9 @@
               }
             }
           }
-        }
+        },
+        "operationId": "get-vaults",
+        "summary": "GET /v1/vaults"
       }
     },
     "/v1/vaults/{id}": {
@@ -1648,6 +2201,12 @@
                     "leaderShares": {
                       "type": "string"
                     },
+                    "navFull": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
                     "profitShareBps": {
                       "type": "integer"
                     },
@@ -1671,6 +2230,13 @@
                     },
                     "apyBps": {
                       "type": "integer"
+                    },
+                    "apyKind": {
+                      "type": "string",
+                      "enum": [
+                        "annualized",
+                        "inception"
+                      ]
                     },
                     "closedTradePnl": {
                       "type": "string"
@@ -1710,7 +2276,9 @@
               }
             }
           }
-        }
+        },
+        "operationId": "get-vaults-by-id",
+        "summary": "GET /v1/vaults/{id}"
       }
     },
     "/v1/vaults/{id}/trades": {
@@ -1822,7 +2390,9 @@
               }
             }
           }
-        }
+        },
+        "operationId": "get-vaults-by-id-trades",
+        "summary": "GET /v1/vaults/{id}/trades"
       }
     },
     "/v1/vaults/{id}/deposits": {
@@ -1919,7 +2489,9 @@
               }
             }
           }
-        }
+        },
+        "operationId": "get-vaults-by-id-deposits",
+        "summary": "GET /v1/vaults/{id}/deposits"
       }
     },
     "/v1/vaults/{id}/withdraws": {
@@ -2016,7 +2588,9 @@
               }
             }
           }
-        }
+        },
+        "operationId": "get-vaults-by-id-withdraws",
+        "summary": "GET /v1/vaults/{id}/withdraws"
       }
     },
     "/v1/vaults/{id}/fee-claims": {
@@ -2113,7 +2687,9 @@
               }
             }
           }
-        }
+        },
+        "operationId": "get-vaults-by-id-fee-claims",
+        "summary": "GET /v1/vaults/{id}/fee-claims"
       }
     },
     "/v1/referral/lookup": {
@@ -2201,7 +2777,9 @@
               }
             }
           }
-        }
+        },
+        "operationId": "get-referral-lookup",
+        "summary": "GET /v1/referral/lookup"
       }
     },
     "/v1/referral/info": {
@@ -2321,16 +2899,17 @@
               }
             }
           }
-        }
+        },
+        "operationId": "get-referral-info",
+        "summary": "GET /v1/referral/info"
       }
     },
     "/v1/referral/me": {
       "get": {
         "tags": [
-          "referral",
-          "account"
+          "referral"
         ],
-        "description": "Returns the referral state of the authenticated owner \u2014 both their own referrer row (if any) and the binding they hold as a referee (if any).",
+        "description": "Returns the referral state of the authenticated owner — both their own referrer row (if any) and the binding they hold as a referee (if any).",
         "responses": {
           "200": {
             "description": "Default Response",
@@ -2401,14 +2980,15 @@
               }
             }
           }
-        }
+        },
+        "operationId": "get-referral-me",
+        "summary": "GET /v1/referral/me"
       }
     },
     "/v1/referral/me/trades": {
       "get": {
         "tags": [
-          "referral",
-          "account"
+          "referral"
         ],
         "description": "Trades the authenticated owner has earned referral fees on.",
         "parameters": [
@@ -2483,14 +3063,15 @@
               }
             }
           }
-        }
+        },
+        "operationId": "get-referral-me-trades",
+        "summary": "GET /v1/referral/me/trades"
       }
     },
     "/v1/referral/me/claims": {
       "get": {
         "tags": [
-          "referral",
-          "account"
+          "referral"
         ],
         "description": "Claim history for the authenticated owner as referrer.",
         "parameters": [
@@ -2556,7 +3137,9 @@
               }
             }
           }
-        }
+        },
+        "operationId": "get-referral-me-claims",
+        "summary": "GET /v1/referral/me/claims"
       }
     },
     "/v1/positions/open": {
@@ -2569,7 +3152,9 @@
           "200": {
             "description": "Default Response"
           }
-        }
+        },
+        "operationId": "get-positions-open",
+        "summary": "GET /v1/positions/open"
       }
     },
     "/v1/account/volume": {
@@ -2577,7 +3162,7 @@
         "tags": [
           "account"
         ],
-        "description": "Trailing 14-day traded notional for a wallet (public). Sums position size over position_opened and position_closed events in the window \u2014 mirrors the market contract's rolling VolumeRecord used for fee tiers (liquidations record no volume). Feeds the OrderPanel fee-tier preview.",
+        "description": "Trailing 14-day traded notional for a wallet (public). Sums position size over position_opened and position_closed events in the window — mirrors the market contract's rolling VolumeRecord used for fee tiers (liquidations record no volume). Feeds the OrderPanel fee-tier preview.",
         "parameters": [
           {
             "schema": {
@@ -2614,7 +3199,100 @@
               }
             }
           }
-        }
+        },
+        "operationId": "get-account-volume",
+        "summary": "GET /v1/account/volume"
+      }
+    },
+    "/v1/adl/queue": {
+      "get": {
+        "tags": [
+          "positions"
+        ],
+        "description": "Advisory auto-deleveraging queue for one asset (public): positive-pnl positions ranked by (pnl / collateral) × leverage, quintiles 1..5 (1 = first to be deleveraged if pool coverage fails). Positions are hydrated from ledger entries at the current oracle mark; 30s cache. degraded=true means the ranking could not be computed this window — unknown, not \"nobody at risk\".",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 12
+            },
+            "in": "query",
+            "name": "asset",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 56,
+              "maxLength": 56
+            },
+            "in": "query",
+            "name": "trader",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        },
+        "operationId": "get-adl-queue",
+        "summary": "GET /v1/adl/queue"
+      }
+    },
+    "/v1/account/shortfall": {
+      "get": {
+        "tags": [
+          "account"
+        ],
+        "description": "Claimable shortfall for a wallet (public, L0-3): USDC the vault still owes this trader from payouts it could not cover in full, plus the global repayment reserve. supported=false means the deployed vault predates the shortfall ledger (or the read failed) — hide the surface, the zeros are not facts.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 56,
+              "maxLength": 56
+            },
+            "in": "query",
+            "name": "address",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "address": {
+                      "type": "string"
+                    },
+                    "owed": {
+                      "type": "string"
+                    },
+                    "reserve": {
+                      "type": "string"
+                    },
+                    "supported": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "address",
+                    "owed",
+                    "reserve",
+                    "supported"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "get-account-shortfall",
+        "summary": "GET /v1/account/shortfall"
       }
     },
     "/v1/trades": {
@@ -2622,7 +3300,7 @@
         "tags": [
           "markets"
         ],
-        "description": "Recent realized trades (position_closed / position_liquidated events), newest first. Size, asset, direction, and entry price are joined from the matching position_opened event; null when the open predates the indexer history.",
+        "description": "Recent trades, newest first. Realized rows (position_closed / position_liquidated) carry size, asset, direction, and entry price joined from the matching position_opened event (null when the open predates the indexer history). Cross-margin account liquidations appear as kind:cross_liquidation with null position fields (the chain emits one account-level event; pnl is the account total) — omitted when filtering by asset. Auto-deleveraging fills appear as kind:adl (settled at the oracle mark, with per-position pnl). Pass include_opens=true to also receive position_opened rows as kind:open.",
         "parameters": [
           {
             "schema": {
@@ -2662,6 +3340,14 @@
             "in": "query",
             "name": "limit",
             "required": false
+          },
+          {
+            "schema": {
+              "type": "boolean"
+            },
+            "in": "query",
+            "name": "include_opens",
+            "required": false
           }
         ],
         "responses": {
@@ -2678,7 +3364,10 @@
                         "type": "object",
                         "properties": {
                           "positionId": {
-                            "type": "integer"
+                            "type": [
+                              "null",
+                              "integer"
+                            ]
                           },
                           "trader": {
                             "type": "string"
@@ -2686,8 +3375,11 @@
                           "kind": {
                             "type": "string",
                             "enum": [
+                              "open",
                               "close",
-                              "liquidation"
+                              "liquidation",
+                              "cross_liquidation",
+                              "adl"
                             ]
                           },
                           "asset": {
@@ -2754,7 +3446,9 @@
               }
             }
           }
-        }
+        },
+        "operationId": "get-trades",
+        "summary": "GET /v1/trades"
       }
     },
     "/v1/candles": {
@@ -2856,16 +3550,30 @@
               }
             }
           }
-        }
+        },
+        "operationId": "get-candles",
+        "summary": "GET /v1/candles"
       }
     },
     "/v1/leaderboard": {
       "get": {
         "tags": [
-          "markets"
+          "leaderboard"
         ],
-        "description": "Trader leaderboard from the indexer projections. Rank by lifetime realized PnL (`sort=pnl`, default) or traded notional (`sort=volume`). Durable replacement for the web cron that re-scanned Horizon.",
+        "description": "Trader leaderboard from the indexer projections, ranked in SQL per deployment scope. `scope` selects the venue (`testnet` today; `mainnet` stays empty until launch, and a scope from another Stellar network answers `not_indexed_here` with zero rows). Rank by realized PnL (`sort=pnl`, default) or traded notional (`sort=volume`); ties break on the other metric, then trader, so ranks are unique and pages never overlap. Pages slice an immutable snapshot: pass the returned `snapshot` id with the next `offset` to keep ranks stable while paging, and watch `snapshotChanged` for the moment the board recomputed underneath you. `updatedAt` is when the index last advanced (unix seconds).",
         "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "testnet",
+                "mainnet"
+              ]
+            },
+            "in": "query",
+            "name": "scope",
+            "required": false
+          },
           {
             "schema": {
               "type": "string",
@@ -2887,6 +3595,24 @@
             "in": "query",
             "name": "limit",
             "required": false
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "in": "query",
+            "name": "offset",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "in": "query",
+            "name": "snapshot",
+            "required": false
           }
         ],
         "responses": {
@@ -2904,11 +3630,53 @@
                         "volume"
                       ]
                     },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "testnet",
+                        "mainnet"
+                      ]
+                    },
+                    "network": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "empty",
+                        "not_indexed_here"
+                      ]
+                    },
+                    "updatedAt": {
+                      "type": [
+                        "null",
+                        "integer"
+                      ]
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "limit": {
+                      "type": "integer"
+                    },
+                    "offset": {
+                      "type": "integer"
+                    },
+                    "snapshot": {
+                      "type": "string"
+                    },
+                    "snapshotChanged": {
+                      "type": "boolean"
+                    },
                     "leaders": {
                       "type": "array",
                       "items": {
                         "type": "object",
                         "properties": {
+                          "rank": {
+                            "type": "integer"
+                          },
                           "trader": {
                             "type": "string"
                           },
@@ -2917,32 +3685,327 @@
                           },
                           "volume": {
                             "type": "string"
+                          },
+                          "trades": {
+                            "type": "integer"
+                          },
+                          "liqCount": {
+                            "type": "integer"
                           }
                         },
                         "required": [
+                          "rank",
                           "trader",
                           "pnl",
-                          "volume"
+                          "volume",
+                          "trades",
+                          "liqCount"
                         ]
                       }
                     }
                   },
                   "required": [
                     "sort",
+                    "scope",
+                    "network",
+                    "state",
+                    "updatedAt",
+                    "total",
+                    "limit",
+                    "offset",
+                    "snapshot",
+                    "snapshotChanged",
                     "leaders"
                   ]
                 }
               }
             }
           }
-        }
+        },
+        "operationId": "get-leaderboard",
+        "summary": "GET /v1/leaderboard"
+      }
+    },
+    "/v1/leaderboard/rank": {
+      "get": {
+        "tags": [
+          "leaderboard"
+        ],
+        "description": "One trader's rank and row on the full board for a (scope, sort), looked up in the same snapshot the board pages slice, so it is always consistent with the pages and costs no extra scan. `rank` is null when the trader is not on the board.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 56,
+              "maxLength": 56,
+              "pattern": "^G[A-Z2-7]{55}$"
+            },
+            "in": "query",
+            "name": "trader",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "testnet",
+                "mainnet"
+              ]
+            },
+            "in": "query",
+            "name": "scope",
+            "required": false
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pnl",
+                "volume"
+              ]
+            },
+            "in": "query",
+            "name": "sort",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "trader": {
+                      "type": "string"
+                    },
+                    "sort": {
+                      "type": "string",
+                      "enum": [
+                        "pnl",
+                        "volume"
+                      ]
+                    },
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "testnet",
+                        "mainnet"
+                      ]
+                    },
+                    "network": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "empty",
+                        "not_indexed_here"
+                      ]
+                    },
+                    "rank": {
+                      "type": [
+                        "null",
+                        "integer"
+                      ]
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "snapshot": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": [
+                        "null",
+                        "integer"
+                      ]
+                    },
+                    "entry": {
+                      "type": [
+                        "null",
+                        "object"
+                      ],
+                      "properties": {
+                        "rank": {
+                          "type": "integer"
+                        },
+                        "trader": {
+                          "type": "string"
+                        },
+                        "pnl": {
+                          "type": "string"
+                        },
+                        "volume": {
+                          "type": "string"
+                        },
+                        "trades": {
+                          "type": "integer"
+                        },
+                        "liqCount": {
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "rank",
+                        "trader",
+                        "pnl",
+                        "volume",
+                        "trades",
+                        "liqCount"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "trader",
+                    "sort",
+                    "scope",
+                    "network",
+                    "state",
+                    "rank",
+                    "total",
+                    "snapshot",
+                    "updatedAt",
+                    "entry"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "get-leaderboard-rank",
+        "summary": "GET /v1/leaderboard/rank"
+      }
+    },
+    "/v1/leaderboard/totals": {
+      "get": {
+        "tags": [
+          "leaderboard"
+        ],
+        "description": "Market wide headline totals (distinct traders, traded notional, trade count), aggregated in SQL over EVERY trader rather than the ranked page. Summing `/v1/leaderboard` undercounts once distinct traders exceed the page limit: the count pins at the limit and the tail stops contributing. Scoped like the board (same `scope` semantics), with the same legacy baseline slice.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "testnet",
+                "mainnet"
+              ]
+            },
+            "in": "query",
+            "name": "scope",
+            "required": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "scope": {
+                      "type": "string",
+                      "enum": [
+                        "testnet",
+                        "mainnet"
+                      ]
+                    },
+                    "network": {
+                      "type": "string"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "empty",
+                        "not_indexed_here"
+                      ]
+                    },
+                    "updatedAt": {
+                      "type": [
+                        "null",
+                        "integer"
+                      ]
+                    },
+                    "traders": {
+                      "type": "integer"
+                    },
+                    "volume": {
+                      "type": "string"
+                    },
+                    "trades": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "scope",
+                    "network",
+                    "state",
+                    "updatedAt",
+                    "traders",
+                    "volume",
+                    "trades"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "operationId": "get-leaderboard-totals",
+        "summary": "GET /v1/leaderboard/totals"
       }
     }
   },
   "servers": [
     {
-      "url": "https://noetherapi-production.up.railway.app",
-      "description": "Production gateway (Stellar testnet)"
+      "url": "https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io",
+      "description": "Noether gateway (Stellar testnet)"
+    }
+  ],
+  "tags": [
+    {
+      "name": "markets",
+      "x-displayName": "Markets"
+    },
+    {
+      "name": "oracle",
+      "x-displayName": "Oracle and prices"
+    },
+    {
+      "name": "account",
+      "x-displayName": "Account"
+    },
+    {
+      "name": "positions",
+      "x-displayName": "Positions"
+    },
+    {
+      "name": "trading",
+      "x-displayName": "Orders and transactions"
+    },
+    {
+      "name": "vaults",
+      "x-displayName": "Vaults"
+    },
+    {
+      "name": "referral",
+      "x-displayName": "Referral"
+    },
+    {
+      "name": "leaderboard",
+      "x-displayName": "Leaderboard"
+    },
+    {
+      "name": "keys",
+      "x-displayName": "API keys"
+    },
+    {
+      "name": "system",
+      "x-displayName": "Events and health"
     }
   ]
 }

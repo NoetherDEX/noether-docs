@@ -1,0 +1,22 @@
+---
+title: Changelog
+description: Dated, user-facing changes to the app, the gateway API, the SDKs and the deployed contract stack. Internal incidents and operations are not listed here.
+---
+
+## 2026-09
+
+- **2026-09-18** Documentation rebuilt: new site, endpoint reference generated from the gateway spec, addresses and market lists generated from live data.
+
+## 2026-08
+
+- **2026-08-30** SDKs 0.2.0 on npm and PyPI: pool-capacity headroom and custody blocks on market stats, one-shot resubmit on stale footprints (TypeScript), richer submit-failure payloads (Python). Details on the [TypeScript](/developers/sdk-ts) and [Python](/developers/sdk-py) pages.
+- **2026-08-12** SDKs 0.1.2 on npm and PyPI: gateway parity (stats, candles, ADL queue, volume, shortfall), cursor pagination, error taxonomy, fixed Python key issuance.
+- Referral economics live on-chain: referees get a 4% fee discount, referrers accrue 10% of referee fees and claim in USDC from the referral registry.
+
+## 2026-07
+
+- **2026-07-21** Production stack redeployed on testnet with fresh contract addresses (see [Contracts and events](/protocol/contracts)).
+- **2026-07-19** Public testnet app at [testnet.noether.exchange](https://testnet.noether.exchange).
+- **2026-07-15** Gateway and indexer moved to a new host; the API base URL changed.
+- **2026-07-10** First documentation site.
+- **2026-07-04** Market list expanded to 14 perpetual pairs.

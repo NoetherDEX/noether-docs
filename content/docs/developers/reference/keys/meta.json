@@ -1,0 +1,10 @@
+{
+  "title": "API keys",
+  "pages": [
+    "get-keys-beta-status",
+    "post-keys-challenge",
+    "get-keys",
+    "post-keys",
+    "delete-keys-by-keyId"
+  ]
+}

@@ -1,0 +1,86 @@
+{
+  "fetchedAt": "2026-09-17T22:00:51.816Z",
+  "count": 16,
+  "markets": [
+    {
+      "symbol": "BTC",
+      "name": "Bitcoin",
+      "decimals": 8
+    },
+    {
+      "symbol": "ETH",
+      "name": "Ethereum",
+      "decimals": 8
+    },
+    {
+      "symbol": "XLM",
+      "name": "Stellar Lumens",
+      "decimals": 7
+    },
+    {
+      "symbol": "SOL",
+      "name": "Solana",
+      "decimals": 7
+    },
+    {
+      "symbol": "XRP",
+      "name": "XRP",
+      "decimals": 7
+    },
+    {
+      "symbol": "ADA",
+      "name": "Cardano",
+      "decimals": 7
+    },
+    {
+      "symbol": "BNB",
+      "name": "BNB",
+      "decimals": 7
+    },
+    {
+      "symbol": "TRX",
+      "name": "Tron",
+      "decimals": 7
+    },
+    {
+      "symbol": "HYPE",
+      "name": "Hyperliquid",
+      "decimals": 7
+    },
+    {
+      "symbol": "DOGE",
+      "name": "Dogecoin",
+      "decimals": 7
+    },
+    {
+      "symbol": "ZEC",
+      "name": "Zcash",
+      "decimals": 7
+    },
+    {
+      "symbol": "LINK",
+      "name": "Chainlink",
+      "decimals": 7
+    },
+    {
+      "symbol": "BCH",
+      "name": "Bitcoin Cash",
+      "decimals": 7
+    },
+    {
+      "symbol": "LTC",
+      "name": "Litecoin",
+      "decimals": 7
+    },
+    {
+      "symbol": "PUMP",
+      "name": "Pump.fun",
+      "decimals": 7
+    },
+    {
+      "symbol": "UNI",
+      "name": "Uniswap",
+      "decimals": 7
+    }
+  ]
+}
