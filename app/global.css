@@ -21,6 +21,19 @@
   --color-long: hsl(158 80% 43%);
   --color-short: hsl(357 81% 57%);
   --color-blue: hsl(217 91% 60%);
+
+  /* App radius scale tops out at 8px; elevation never uses shadows. */
+  --radius-xl: 0.5rem;
+  --radius-2xl: 0.5rem;
+  --radius-3xl: 0.5rem;
+  --shadow-2xs: 0 0 #0000;
+  --shadow-xs: 0 0 #0000;
+  --shadow-sm: 0 0 #0000;
+  --shadow: 0 0 #0000;
+  --shadow-md: 0 0 #0000;
+  --shadow-lg: 0 0 #0000;
+  --shadow-xl: 0 0 #0000;
+  --shadow-2xl: 0 0 #0000;
 }
 
 :root,
@@ -100,9 +113,10 @@ td {
   text-wrap: pretty;
 }
 
-/* Focus: brand gold, 10.3:1 on the base background. */
+/* Focus: brand gold, 10.3:1 on the base background. Fumadocs colours its
+   outline in currentColor; the app uses one colour everywhere. */
 :focus-visible {
-  outline: 2px solid var(--color-gold);
+  outline: 2px solid var(--color-gold) !important;
   outline-offset: 2px;
 }
 

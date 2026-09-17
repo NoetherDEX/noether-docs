@@ -2,7 +2,6 @@
   "title": "REST API",
   "defaultOpen": true,
   "pages": [
-    "index",
     "markets",
     "oracle",
     "account",

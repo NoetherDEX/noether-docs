@@ -9,10 +9,11 @@ export function baseOptions(): BaseLayoutProps {
       url: '/',
     },
     githubUrl: site.github,
+    themeSwitch: { enabled: false },
     links: [
-      { text: 'Guides', url: '/guides', active: 'nested-url' },
-      { text: 'Developers', url: '/developers', active: 'nested-url' },
-      { text: 'Protocol', url: '/protocol', active: 'nested-url' },
+      { text: 'Guides', url: '/guides', active: 'nested-url', on: 'nav' },
+      { text: 'Developers', url: '/developers', active: 'nested-url', on: 'nav' },
+      { text: 'Protocol', url: '/protocol', active: 'nested-url', on: 'nav' },
       {
         type: 'custom',
         secondary: true,

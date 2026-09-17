@@ -1,7 +1,6 @@
 {
   "title": "Endpoint reference",
   "pages": [
-    "index",
     "markets",
     "oracle",
     "trading",
