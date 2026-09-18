@@ -15,6 +15,8 @@ The gateway never holds private keys. Every trade is a three-step flow:
 2. **Sign.** You sign that XDR client-side with your own Stellar key (wallet or keypair). The gateway is never involved.
 3. **Submit.** `POST /v1/tx/submit` relays the signed XDR to the network and polls until it reaches a final status or times out.
 
+<Diagram name="prepare-sign-submit" caption="The gateway prepares and relays; only your wallet signs. A PENDING result means resubmit the same signed XDR, never a new one." />
+
 Two properties of the prepared transaction matter for your integration:
 
 - **The trader is always the API key's owner.** The gateway sets the transaction's source account to the Stellar address that issued your key. You cannot prepare a transaction for another address.

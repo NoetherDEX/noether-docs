@@ -144,6 +144,8 @@ Funding you owe leaves your position's collateral for the vault together with an
 
 ## Liquidation
 
+<Diagram name="liquidation" caption="Isolated positions. Cross accounts are liquidated as a whole, in stages, as described below." />
+
 ### Isolated positions
 
 A position is liquidatable when the mark crosses its stored liquidation price (long: at or below; short: at or above), or when `collateral + pnl − funding` falls below 2% of its size (1% for positions opened before the ladder). Two more conditions apply while the position still has equity:

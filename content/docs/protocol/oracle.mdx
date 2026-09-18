@@ -32,17 +32,9 @@ Prices are 7-decimal fixed point throughout the stack: the raw string `762669288
 
 ## How a price reaches the market
 
-The market contract never talks to Noeracle directly. It reads through the Noeracle shim, a small SEP-40 style reader contract:
+The market contract never talks to Noeracle directly. It reads through the Noeracle shim, a small SEP-40 style reader contract that maps each symbol to Noeracle's 8-byte feed tag (BTC to `BTCUSD`) and returns the stored round from `get_price_pers`:
 
-```text
-market
-  └─ lastprice(asset)                     ← the market's single price read
-       └─ Noeracle shim
-            ├─ maps the symbol to its 8-byte feed tag (BTC → BTCUSD)
-            └─ Noeracle.get_price_pers(tag)
-                 ├─ entry exists → returns (price, timestamp)
-                 └─ no entry     → panics OracleUnavailable (#32)
-```
+<Diagram name="price-path" caption="Two writers, one reader: the keeper keeps prices fresh on a heartbeat, and every trade carries its own fresh round through the router." />
 
 Three properties matter here:
 

@@ -9,49 +9,7 @@ The live deployment runs on the Stellar testnet. The app is at [testnet.noether.
 
 ## System overview
 
-```text
-          Noeracle attestation service (off-chain, api.noeracle.org)
-          one publisher signs (feed, price, timestamp, round) about twice a second
-                     │                                  │
-   fetch ONE signed  │                                  │  fetch the latest signed
-   round at trade    │                                  │  rounds on a schedule
-   time              ▼                                  ▼
-                ┌──────────┐                      ┌────────────┐
-  Trader ──────▶│ Web app  │                      │ Keeper bot │
-  (wallet signs)│ (one tx) │                      └─────┬──────┘
-                └────┬─────┘                            │ heartbeat: relay rounds
-                     ▼                                  │   ──▶ Noeracle (on-chain)
-            ┌─────────────────┐                         │ liquidate / execute /
-            │ Noether Router  │                         │ apply funding / ADL
-            │ 1. allowlist    │                         │ (through the router)
-            │ 2. sanity band  │                         │
-            │ 3. relay round ─┼──▶ Noeracle (on-chain)  │
-            │ 4. call market ─┼──────────┐              │
-            └─────────────────┘          ▼              ▼
-                              ┌──────────────────────────┐
-                              │      Market contract      │
-                              │  positions, orders,       │──reads price──▶ Noeracle shim
-                              │  liquidations, funding    │                 (lastprice / twap)
-                              └──────┬────────────────────┘                       │
-                       reserve /     │    fees, losses, funding                   ▼
-                       settle PnL    ▼                                    Noeracle (on-chain)
-                              ┌──────────────────┐
-                              │  Liquidity vault  │◀── LP deposits (USDC ⇄ NOE)
-                              └──────────────────┘
-
-  Market / vault / vault factory / referral events
-                     │
-                     ▼  polls getEvents from a persisted cursor
-              ┌────────────┐   writes projections     ┌──────────────┐
-              │  Indexer   │─────────────────────────▶│   Postgres   │
-              └────────────┘                           └──────┬───────┘
-                     ▲  also polls the Noeracle API           │
-                     │  and folds prices into candles         ▼
-                                                      ┌──────────────┐
-   on-chain reads (shim, 3 s cache) ─────────────────▶│ API gateway  │──▶ REST /v1/*
-                                                      │              │──▶ WS  /v1/ws
-                                                      └──────────────┘
-```
+<Diagram name="system-overview" caption="The trade path goes through the Noether Router in one transaction; the read path serves indexed data through the API gateway." />
 
 Three things to notice:
 
@@ -121,6 +79,8 @@ The service that keeps the protocol moving. On a fixed schedule (30 seconds by d
 ## Life of a trade
 
 What happens when you open a market position from the web app:
+
+<Diagram name="life-of-a-trade" caption="Everything after the signature runs inside one transaction: if any check fails, nothing happens." />
 
 1. **Fetch a round.** The app requests the latest signed round for your pair from `https://api.noeracle.org/v1/latest`. It carries the feed tag, the price (7-decimal fixed point), a timestamp, a round ID, the publisher key and an ed25519 signature.
 2. **Build and sign one transaction.** The app assembles a single router call, `open_with_price(trader, collateral, leverage, direction, acceptable_price, attestation)`, and your wallet signs it once, authorizing the whole call tree. `acceptable_price` is your own fill bound; 0 means unbounded.
