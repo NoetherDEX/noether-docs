@@ -1,21 +1,21 @@
 ---
-title: "Keys, events & health"
-description: "Reference for the gateway's system endpoints: the five API-key management endpoints, the raw contract event feed (GET /v1/events), and the liveness probe (GET…"
+title: "Keys, events and health"
+description: "The five API-key lifecycle endpoints, the raw decoded contract event feed, and the health probe that echoes the gateway's resolved contract addresses."
 ---
 
-Reference for the gateway's system endpoints: the five API-key management endpoints, the raw contract event feed (`GET /v1/events`), and the liveness probe (`GET /v1/health`). All paths are relative to the production base URL `https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io`.
+Reference for the gateway's system endpoints: the five API-key management endpoints, the raw contract event feed (`GET /v1/events`), and the liveness and configuration probe (`GET /v1/health`). All paths are relative to the base URL `https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io`.
 
 ## API key management
 
-Five endpoints manage the full key lifecycle. The first three are public and implement the wallet-challenge issuance flow; the last two require a bearer key. This section summarizes requests and responses — for the full signing walkthrough (what the wallet signs, wallet compatibility, error cases), see [Authentication](/developers/authentication).
+Five endpoints manage the full key lifecycle. The first three are public and implement the wallet-challenge issuance flow; the last two require a bearer key and the `X-Timestamp` header. This section summarizes requests and responses; for the full signing walkthrough (what the wallet signs, wallet compatibility, error cases), see [Authentication](/developers/authentication).
 
-<Callout type="warning">
-Key issuance is in closed beta. If your wallet address is not on the access list, `POST /v1/keys` returns `403 {"error":"not_in_beta"}`. Check your status first with `GET /v1/keys/beta-status`. Public endpoints and already-issued keys are unaffected by the gate.
+<Callout type="warning" title="Closed beta">
+Key issuance is allowlist-gated. If your wallet address is not on the access list, `POST /v1/keys` returns `403 {"error":"not_in_beta"}`. Check your status first with `GET /v1/keys/beta-status`. Public endpoints and already-issued keys are unaffected by the gate.
 </Callout>
 
-### `GET /v1/keys/beta-status` — check issuance gating
+### `GET /v1/keys/beta-status`: check issuance gating
 
-Public. Optional query param `address` (a 56-character Stellar `G…` address).
+Public. Optional query param `address` (a 56-character Stellar `G...` address).
 
 ```bash
 curl -s "https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/keys/beta-status?address=GBTRADER..."
@@ -25,11 +25,11 @@ curl -s "https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontai
 { "gated": true, "allowed": false }
 ```
 
-`gated` is `true` when an access list is configured. `allowed` is `true` when issuance is open to everyone, or when the supplied address is on the list.
+`gated` is `true` when an access list is configured. `allowed` is `true` when issuance is open to everyone, or when the supplied address is on the list; without an `address` it is `false` while the gate is on.
 
-### `POST /v1/keys/challenge` — request a signing challenge
+### `POST /v1/keys/challenge`: request a signing challenge
 
-Public. Body: `{"address": "G…"}` (exactly 56 characters).
+Public. Body: `{"address": "G..."}` (exactly 56 characters).
 
 ```bash
 curl -s -X POST https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/keys/challenge \
@@ -38,20 +38,20 @@ curl -s -X POST https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azur
 ```
 
 ```json
-{ "challengeHex": "9f8e...64 hex chars...", "expiresAt": 1720000300000 }
+{ "challengeHex": "e1e7d001291a9253c8052fe6dda16e64d4b890b092044d56bcf0430d81366bc3", "expiresAt": 1789683629127 }
 ```
 
-The challenge is 32 random bytes, hex-encoded. It is single-use, expires after 5 minutes (`expiresAt` is a millisecond epoch), and only one challenge is pending per address — requesting a new one invalidates the previous. A failed verification attempt also burns the challenge, so request a fresh one before retrying.
+The challenge is 32 random bytes, hex-encoded. It is single-use, expires after five minutes (`expiresAt` is a millisecond epoch), and only one challenge is pending per address; requesting a new one invalidates the previous. A failed verification attempt also burns the challenge, so request a fresh one before retrying.
 
-### `POST /v1/keys` — exchange a signed challenge for a key
+### `POST /v1/keys`: exchange a signed challenge for a key
 
 Public, but gated by the closed-beta access list (checked before signature verification).
 
 | Field | Required | Notes |
 |---|---|---|
-| `address` | yes | 56-character Stellar `G…` address |
+| `address` | yes | 56-character Stellar `G...` address |
 | `challenge` | yes | The `challengeHex` you received |
-| `signature` | yes | The **full base64 signed transaction XDR** — not a detached signature, despite the name |
+| `signature` | yes | The full base64 signed transaction XDR, not a detached signature, despite the name |
 | `label` | no | Free-text label, at most 64 characters |
 
 Success returns `201`:
@@ -62,23 +62,22 @@ Success returns `201`:
   "secret": "64-hex-char-secret...",
   "tier": "standard",
   "owner": "GBTRADER...",
-  "createdAt": 1720000000000
+  "createdAt": 1789683600000
 }
 ```
 
-<Callout type="info">
-The `secret` is shown exactly once — only its hash is stored server-side, and there is no way to retrieve it again. Store it immediately. Use the pair as `Authorization: Bearer <keyId>:<secret>` on REST calls, or in the WebSocket `login` op.
-</Callout>
+The `secret` is shown exactly once; only its hash is stored server-side and there is no way to retrieve it again. Store it immediately. Use the pair as `Authorization: Bearer <keyId>:<secret>` with `X-Timestamp` on REST calls, or in the WebSocket `login` op.
 
-Errors: `403 {"error":"not_in_beta", ...}` (address not on the access list) and `401 {"error":"invalid_signature"}` (bad, expired, or reused challenge; wrong signature; fee-bump transaction; wrong first operation). How to construct the signed transaction is covered step by step in [Authentication](/developers/authentication).
+Errors: `403 {"error":"not_in_beta", ...}` (address not on the access list), `401 {"error":"invalid_signature"}` (bad, expired or reused challenge; wrong signature; fee-bump transaction; wrong first operation), and `409 {"error":"key_limit_reached", ...}` (the wallet already holds the maximum number of active keys; the message states the count and limit). How to construct the signed transaction is covered step by step in [Authentication](/developers/authentication).
 
-### `GET /v1/keys` — list your keys
+### `GET /v1/keys`: list your keys
 
 Requires a bearer key. Returns every key with the same owner as the authenticated key, newest first, including revoked ones.
 
 ```bash
 curl -s https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/keys \
-  -H "Authorization: Bearer nk_your_key_id:your_secret"
+  -H "Authorization: Bearer nk_your_key_id:your_secret" \
+  -H "X-Timestamp: $(date +%s)"
 ```
 
 ```json
@@ -89,8 +88,8 @@ curl -s https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontain
       "owner": "GBTRADER...",
       "tier": "standard",
       "label": "trading-bot",
-      "createdAt": 1720000000000,
-      "lastUsedAt": 1720003600000,
+      "createdAt": 1789683600000,
+      "lastUsedAt": 1789687200000,
       "revokedAt": null
     }
   ]
@@ -99,58 +98,67 @@ curl -s https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontain
 
 Timestamps are millisecond epochs. `lastUsedAt` updates on every successful authentication.
 
-### `DELETE /v1/keys/{keyId}` — revoke a key
+### `DELETE /v1/keys/{keyId}`: revoke a key
 
 Requires a bearer key, owner-scoped: a key can revoke any key belonging to the same owner, including itself. Revoked keys fail authentication immediately.
 
 ```bash
 curl -s -X DELETE https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/keys/nk_3f9a1c0b8d2e4f6a7b8c9d0e \
-  -H "Authorization: Bearer nk_your_key_id:your_secret"
+  -H "Authorization: Bearer nk_your_key_id:your_secret" \
+  -H "X-Timestamp: $(date +%s)"
 ```
 
 Returns `{"revoked": true}` on success, or `404 {"error":"key_not_found"}` when the key does not exist, belongs to another owner, or is already revoked.
 
-## `GET /v1/events` — raw contract events
+## `GET /v1/events`: raw contract events
 
-Public. Returns decoded on-chain contract events from the indexer, newest first. The same underlying event rows also stream live (framed slightly differently) on the WebSocket `events` channel — see [WebSocket](/developers/websocket).
+Public. Returns decoded on-chain contract events from the indexer, newest first. The same underlying event rows also stream live (framed slightly differently) on the WebSocket `events` channel; see [WebSocket API](/developers/websocket).
 
 | Query param | Type | Notes |
 |---|---|---|
 | `topic` | string | Filter by event topic (see below) |
-| `contract` | string | Filter by emitting contract ID |
-| `from_ledger` | integer, at least 0 | Inclusive lower ledger bound |
-| `to_ledger` | integer, at least 0 | Inclusive upper ledger bound |
-| `before_ts` | integer, at least 0 | Pagination cursor: only events with ledger close time strictly less than this unix-seconds value |
-| `limit` | integer, 1–500 | Default 50 |
+| `contract` | string | Filter by emitting contract id |
+| `from_ledger` | integer, 0 or more | Inclusive lower ledger bound |
+| `to_ledger` | integer, 0 or more | Inclusive upper ledger bound |
+| `before_ts` | integer, 0 or more | Pagination cursor: only events with a ledger close time strictly less than this unix-seconds value |
+| `limit` | integer, 1 to 500 | Default 50 |
 
 All parameters are optional. Pagination is cursor-style: take the `ledgerCloseTs` of the last row and pass it as `before_ts` on the next request. There are no page tokens or total counts.
 
 ```bash
-curl -s "https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/events?topic=funding_applied&limit=1"
+curl -s "https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/events?topic=position_opened&limit=1"
 ```
 
 ```json
 {
   "events": [
     {
-      "eventId": "0012760575469703168-0000000000",
-      "contractId": "CC2HH34Q7GOMNBNPSNSQIIUSYYXLYLOOLMUY3ZTFFBLJ2DENWHGS6GNB",
-      "topic": "funding_applied",
-      "ledger": 2971053,
-      "ledgerCloseTs": 1780867142,
-      "txHash": "85895449a4316bea9d27252f3b4e15dbd8f8d3c2c7c27485160ffe791d8182e0",
-      "payload": { "topic": "funding_applied", "fundingRate": "-171", "hoursElapsed": "1" },
-      "insertedAt": 1780867143077
+      "eventId": "0020293797783048192-0000000007",
+      "contractId": "CBHHWFAYLB3SXJCE232DC6WNSK74IBEOROAGCI2AFBA2H5NQOH2KYKNN",
+      "topic": "position_opened",
+      "ledger": 4725018,
+      "ledgerCloseTs": 1789648677,
+      "txHash": "43b2686faad77617d59ff1d115e58a732201467b6fa157e77a47f01cc09d2d01",
+      "payload": {
+        "size": "999900000000",
+        "asset": "ETH",
+        "topic": "position_opened",
+        "trader": "GACOJCQWGRBW7AN4ON7WD54D7UQFWFHBCCOLFCVZHELKGYB34YNFP2YU",
+        "direction": 0,
+        "entryPrice": "24683700000",
+        "positionId": 22481
+      },
+      "insertedAt": 1789648683965
     }
   ]
 }
 ```
 
-`ledgerCloseTs` is unix seconds; `insertedAt` is a millisecond epoch. The event log preserves history across contract redeployments, so `contractId` may reference a contract from an earlier deployment (as in this real captured sample) — pass the `contract` filter if you only want events from the currently deployed contracts (see `/v1/health`). `payload` is the decoded event body and its shape varies per topic. Market topics include `position_opened`, `position_closed`, `position_liquidated`, `order_placed`, `order_executed`, `order_cancelled`, and `funding_applied`; vault and referral contracts emit their own topics. The exact on-chain event tuples behind these payloads are documented in [Contracts](/protocol/contracts).
+`ledgerCloseTs` is unix seconds; `insertedAt` is a millisecond epoch. `payload` is the decoded event body and its shape varies per topic. The event log preserves history across contract redeployments, so `contractId` can reference a contract from an earlier deployment; pass the `contract` filter with an address from `/v1/health` if you only want events from the currently deployed contracts. Without a `topic` filter the newest rows can be dominated by the Liquidity Vault's frequent `exposure_synced` events (they were at the time of writing), so filter by topic for anything trader-facing. Market topics include `position_opened`, `position_closed`, `position_liquidated`, `order_placed`, `order_executed`, `order_cancelled` and `funding_applied`; the vault, vault factory and referral contracts emit their own topics (for example `code_created` and `referrer_set` from the referral registry). The on-chain event tuples behind these payloads are documented in [Contracts](/protocol/contracts).
 
-## `GET /v1/health` — liveness and configuration probe
+## `GET /v1/health`: liveness and configuration probe
 
-Public and **exempt from rate limits** — safe to poll from monitoring. Beyond a liveness check, it echoes the **resolved contract addresses this gateway deployment actually serves**, which is the quickest way to verify what a gateway instance points at.
+Public and exempt from rate limits, so it is safe to poll from monitoring. Beyond a liveness check, it echoes the resolved contract addresses this gateway deployment serves, the market's pause state, and an open-position drift check between the chain and the indexer.
 
 ```bash
 curl -s https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/health
@@ -159,36 +167,40 @@ curl -s https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontain
 ```json
 {
   "status": "ok",
-  "uptime": 207584.19,
-  "version": "0.1.0",
+  "uptime": 1308442.225384054,
+  "version": "0.0.0-dev",
   "network": "testnet",
   "contracts": {
-    "market":        { "address": "CAE3U7JKESRWZHPEQ72DVNGOQ6WPA7HSPQZL5YV46NPCE4TMUPAGYMEC", "source": "manifest" },
-    "vault":         { "address": "CBLVZZ557ALB342GBQIMC2E3IYXJ5AEL7XSVMPX36CVLKRDQGDH22UL6", "source": "manifest" },
-    "noeracleShim":  { "address": "CBY4YLPYEN5GMV4JMVZGCSU433SO5JTEGCS66GIT3EZOUG2CN2TWT6UK", "source": "manifest" },
-    "noetherRouter": { "address": "CDH4CY3XMUZ7H73LC3WJYR3AG56U4MTIBMR2WHNORXDTWLLBOQII44S4", "source": "manifest" },
+    "market":        { "address": "CBHHWFAYLB3SXJCE232DC6WNSK74IBEOROAGCI2AFBA2H5NQOH2KYKNN", "source": "env" },
+    "vault":         { "address": "CBSWA5P75NGV2LP5KOY7A7LOAX2CENI5OYBSJ5IVLHENKQJF2I3ZBSYE", "source": "env" },
+    "noeracleShim":  { "address": "CDRQJDCZ2EKIVAM6D6U2YFTE7VNMN3TFUUJGZ5SKAFB5TCLMSHSSWU6N", "source": "env" },
+    "noetherRouter": { "address": "CBDVQKYEN6QMRGQZC77DFYEQXQHDMCVJ3TPBJKNERJVMIESA6GQT44LG", "source": "env" },
     "usdcToken":     { "address": "CA63EPM4EEXUVUANF6FQUJEJ37RWRYIXCARWFXYUMPP7RLZWFNLTVNR4", "source": "manifest" },
-    "noeToken":      { "address": "CD7VRBXIDYP2C2F2AZZL242GY4PRDVDH2BG3LAN2ASXYUXCPHWQJTDP5", "source": "manifest" },
-    "vaultFactory":  { "address": "CAZPVI2PLDQJGDDGULG7FSVNYO3B7BTWTTK5OWVH5SSWN7SJ4ZCBTVP5", "source": "manifest" },
-    "referral":      { "address": "CCV5NWLGQTCRFFOTHJDQVFOOLAEUPQTWMPTNNHR2EU64BULV77W5GXEE", "source": "manifest" }
+    "noeToken":      { "address": "CADEAZ3TT5SIGJVBIWMMWC4TFZKPKGPGGJ6O4JGAAZTLR6MIBDRBQ4H5", "source": "env" },
+    "vaultFactory":  { "address": "CAG5E6IM32GFEXGZOXWLFHNVRMDOYGPRZKZSBFXXHVJ5Q5MNJUSNQKT7", "source": "env" },
+    "referral":      { "address": "CB4A2OHP6BKKF2RC532PPRE7K4X3UOZEVASEQTTTWMRSZGUN2AV2REND", "source": "env" }
   },
-  "indexer": { "lastLedger": 2971053, "lastUpdatedAt": 1780867143252, "ledgerAgeSeconds": 2763198 }
+  "indexer": { "lastLedger": 4731931, "lastUpdatedAt": 1789683244039, "ledgerAgeSeconds": 15 },
+  "market": { "pauseState": { "supported": true, "mode": 0, "since": 1787791938 } },
+  "counts": { "chainOpenPositions": 47, "chainOpenOrders": 2, "indexedOpenPositions": 47, "drift": false }
 }
 ```
 
 | Field | Meaning |
 |---|---|
-| `status`, `uptime`, `version` | Liveness; `uptime` is process seconds |
-| `network` | `testnet` — the live deployment runs on Stellar testnet |
-| `contracts` | Map of all eight contracts to `{address, source}`; `source` is `"manifest"` (baked deployment manifest) or `"env"` (environment override) |
-| `indexer.lastLedger` | Last ledger the indexer read-side has processed |
+| `status`, `uptime`, `version` | Liveness; `uptime` is process seconds. `version` reads `0.0.0-dev` on the current deployment, so do not key behavior on it |
+| `network` | `testnet` |
+| `contracts` | Map of the eight contracts the gateway serves to `{address, source}`; `source` is `"manifest"` (the baked deployment manifest) or `"env"` (an environment override) |
+| `indexer.lastLedger` | Last ledger the indexer read side has processed |
 | `indexer.lastUpdatedAt` | Millisecond epoch of the last indexer write |
-| `indexer.ledgerAgeSeconds` | How far the indexer read-side lags behind now |
+| `indexer.ledgerAgeSeconds` | How far the indexer read side lags behind now |
+| `market.pauseState` | The market's effective pause mode: `0` live, `1` halt-open (exit-only: closes, liquidations and cancels still work), `2` full freeze; `since` is unix seconds. `supported: false` means the state could not be read and must not be taken as live |
+| `counts` | The market's on-chain open position and order counters against the indexer's open-positions projection, sampled together; `drift: true` means the two disagree. Fields are `null` when a side could not be read |
 
-Endpoints backed by indexer projections (`/v1/events`, `/v1/trades`, `/v1/leaderboard`, `/v1/positions/open`, and others) can lag behind the chain; live oracle price endpoints do not. Before relying on projection data, check `indexer.ledgerAgeSeconds` here — the real captured sample above shows a heavily lagging indexer (`ledgerAgeSeconds` ≈ 32 days), which is exactly the condition this field exists to expose. On a fresh deployment with no indexed data yet, the `indexer` fields are `null`.
+The `counts` and `pauseState` blocks are sampled on a short cache, so consecutive polls can return the same values. Endpoints backed by indexer projections (`/v1/events`, `/v1/trades`, `/v1/leaderboard`, `/v1/positions/open` and others) can lag behind the chain; live oracle price endpoints do not. Before relying on projection data, check `indexer.ledgerAgeSeconds` here. On a fresh deployment with no indexed data yet, the `indexer` fields are `null`.
 
 ## Next steps
 
-- [Authentication](/developers/authentication) — the full challenge-signing flow with wallet code
-- [WebSocket](/developers/websocket) — stream the same events live instead of polling
-- [API explorer](/developers/reference) — try these endpoints interactively
+- [Authentication](/developers/authentication): the full challenge-signing flow with wallet code
+- [WebSocket API](/developers/websocket): stream the same events live instead of polling
+- [Generated reference](/developers/reference): try these endpoints interactively
