@@ -289,3 +289,42 @@ td {
 .prose th code {
   font-size: 12px;
 }
+
+/* Diagrams (diagram-design dark skin): the canvas colour frames the figure. */
+.noe-diagram {
+  margin: 1.75rem 0;
+}
+.noe-diagram-frame {
+  overflow-x: auto;
+  border: 1px solid var(--color-fd-border);
+  border-radius: 8px;
+  background: #2d3142;
+}
+.noe-diagram-canvas {
+  margin: 0 auto;
+}
+.noe-diagram-canvas svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.noe-diagram figcaption {
+  margin-top: 0.625rem;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-fd-muted-foreground);
+  max-width: var(--noe-measure);
+  text-wrap: pretty;
+}
+.noe-diagram figcaption a {
+  color: var(--color-fd-primary);
+  white-space: nowrap;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Syntax highlighting: github-dark's comment colour (#6A737D) is 3.8:1 on the
+   code surface; lift it to #8B949E (6.0:1). Every other token clears 6.9:1. */
+html.dark .shiki span[style*='--shiki-dark:#6A737D'] {
+  color: #8b949e !important;
+}

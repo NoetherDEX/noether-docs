@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>How a referral pays out</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: #2D3142; color: #F5F5F5; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 3rem 2rem; }
+    .frame { max-width: 1000px; width: 100%; }
+    .eyebrow { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 0.66rem; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: #BFC0C0; margin-bottom: 0.5rem; }
+    h1 { font-family: 'Instrument Serif', serif; font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem); font-weight: 400; letter-spacing: -0.02em; line-height: 1.15; margin-bottom: 1.5rem; }
+    svg { width: 100%; min-width: 720px; height: auto; display: block; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Sequence · Noether</p>
+    <h1>How a referral pays out</h1>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 748 800" role="img" aria-labelledby="referral-flow-title referral-flow-desc" class="dd-svg">
+<title id="referral-flow-title">How a referral pays out</title>
+<desc id="referral-flow-desc">A referrer creates a code and shares the link, the referee binds to it once, and on every referee trade the market asks the referral registry for the split, charges the referee 4% less, sends 10% of the original fee to the registry as USDC, and the referrer claims it.</desc>
+<style>.dd-sans{font-family:var(--font-inter,'Inter'),system-ui,sans-serif}.dd-mono{font-family:var(--font-jetbrains-mono,'JetBrains Mono'),ui-monospace,monospace}.dd-serif{font-family:var(--font-instrument-serif,'Instrument Serif'),Georgia,serif}</style>
+<defs>
+<marker id="referral-flow-a" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#BFC0C0"/></marker>
+<marker id="referral-flow-a-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#F08A59"/></marker>
+<marker id="referral-flow-a-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#6A95D8"/></marker>
+<marker id="referral-flow-a-open" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polyline points="0 0, 8 3, 0 6" fill="none" stroke="#BFC0C0" stroke-width="1.2"/></marker>
+</defs>
+<rect width="100%" height="100%" fill="#2D3142"/>
+<line x1="104" y1="104" x2="104" y2="720" stroke="rgba(245,245,245,0.20)" stroke-width="1" stroke-dasharray="3,3"/>
+<line x1="284" y1="104" x2="284" y2="720" stroke="rgba(245,245,245,0.20)" stroke-width="1" stroke-dasharray="3,3"/>
+<line x1="464" y1="104" x2="464" y2="720" stroke="rgba(245,245,245,0.20)" stroke-width="1" stroke-dasharray="3,3"/>
+<line x1="644" y1="104" x2="644" y2="720" stroke="rgba(245,245,245,0.20)" stroke-width="1" stroke-dasharray="3,3"/>
+<path d="M 106,160 L 462,160" fill="none" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#referral-flow-a)"/>
+<rect x="145" y="136" width="99" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="194" y="148" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" letter-spacing="0.06em" data-maxw="99">CREATE CODE</text>
+<path d="M 106,216 L 282,216" fill="none" stroke="#BFC0C0" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#referral-flow-a-open)"/>
+<rect x="149" y="192" width="91" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="194" y="204" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" letter-spacing="0.06em" data-maxw="91">SHARE LINK</text>
+<path d="M 286,272 L 462,272" fill="none" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#referral-flow-a)"/>
+<rect x="333" y="248" width="83" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="374" y="260" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" letter-spacing="0.06em" data-maxw="83">BIND CODE</text>
+<path d="M 286,328 L 642,328" fill="none" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#referral-flow-a)"/>
+<rect x="329" y="304" width="91" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="374" y="316" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" letter-spacing="0.06em" data-maxw="91">OPEN TRADE</text>
+<path d="M 642,384 L 466,384" fill="none" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#referral-flow-a)"/>
+<rect x="501" y="360" width="107" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="554" y="372" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" letter-spacing="0.06em" data-maxw="107">RECORD_TRADE</text>
+<path d="M 466,440 L 642,440" fill="none" stroke="#BFC0C0" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#referral-flow-a)"/>
+<rect x="517" y="416" width="75" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="554" y="428" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" letter-spacing="0.06em" data-maxw="75">4% / 10%</text>
+<path d="M 642,496 L 466,496" fill="none" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#referral-flow-a)"/>
+<rect x="505" y="472" width="99" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="554" y="484" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" letter-spacing="0.06em" data-maxw="99">PAYOUT USDC</text>
+<path d="M 464,552 L 488,552 Q 496,552 496,560 L 496,568 Q 496,576 488,576 L 466,576" fill="none" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#referral-flow-a)"/>
+<rect x="504" y="556" width="59" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="510" y="568" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="start" letter-spacing="0.06em">CREDIT</text>
+<path d="M 106,624 L 462,624" fill="none" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#referral-flow-a)"/>
+<rect x="169" y="600" width="51" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="194" y="612" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" letter-spacing="0.06em" data-maxw="51">CLAIM</text>
+<path d="M 462,680 L 106,680" fill="none" stroke="#F08A59" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#referral-flow-a-accent)"/>
+<rect x="173" y="656" width="43" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="194" y="668" class="dd-mono" font-size="12" fill="#F08A59" text-anchor="middle" letter-spacing="0.06em" data-maxw="43">USDC</text>
+<rect x="40" y="40" width="128" height="64" rx="6" fill="#2D3142"/>
+<rect x="40" y="40" width="128" height="64" rx="6" fill="rgba(191,192,192,0.10)" stroke="#8E98AC" stroke-width="1"/>
+<text x="104" y="68" class="dd-sans" font-size="16" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="112">Referrer</text>
+<text x="104" y="87" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" data-maxw="112">owns a code</text>
+<rect x="220" y="40" width="128" height="64" rx="6" fill="#2D3142"/>
+<rect x="220" y="40" width="128" height="64" rx="6" fill="rgba(191,192,192,0.10)" stroke="#8E98AC" stroke-width="1"/>
+<text x="284" y="68" class="dd-sans" font-size="16" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="112">Referee</text>
+<text x="284" y="87" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" data-maxw="112">binds once</text>
+<rect x="400" y="40" width="128" height="64" rx="6" fill="#2D3142"/>
+<rect x="400" y="40" width="128" height="64" rx="6" fill="rgba(240,138,89,0.10)" stroke="#F08A59" stroke-width="1"/>
+<text x="464" y="68" class="dd-sans" font-size="16" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="112">Registry</text>
+<text x="464" y="87" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" data-maxw="112">referral_v1</text>
+<rect x="580" y="40" width="128" height="64" rx="6" fill="#2D3142"/>
+<rect x="580" y="40" width="128" height="64" rx="6" fill="#393E53" stroke="#F5F5F5" stroke-width="1"/>
+<text x="644" y="68" class="dd-sans" font-size="16" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="112">Market</text>
+<text x="644" y="87" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" data-maxw="112">fee path</text>
+<line x1="40" y1="744" x2="708" y2="744" stroke="rgba(245,245,245,0.12)" stroke-width="0.8"/>
+<text x="40" y="772" class="dd-mono" font-size="10" fill="#909AAE" text-anchor="start" letter-spacing="0.14em">LEGEND</text>
+<rect x="107" y="761" width="20" height="14" rx="3" fill="rgba(240,138,89,0.10)" stroke="#F08A59" stroke-width="1"/>
+<text x="135" y="772" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">Holds the split</text>
+<path d="M 266,768 L 288,768" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#referral-flow-a)"/>
+<text x="298" y="772" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">Call</text>
+<path d="M 354,768 L 376,768" stroke="#BFC0C0" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#referral-flow-a)"/>
+<text x="386" y="772" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">Return</text>
+<path d="M 455,768 L 477,768" stroke="#BFC0C0" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#referral-flow-a-open)"/>
+<text x="487" y="772" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">Off-chain</text>
+<path d="M 577,768 L 599,768" stroke="#F08A59" stroke-width="1.2" marker-end="url(#referral-flow-a-accent)"/>
+<text x="609" y="772" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">Payout</text>
+</svg>
+  </div>
+</body>
+</html>

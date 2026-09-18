@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The keeper cycle</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: #2D3142; color: #F5F5F5; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 3rem 2rem; }
+    .frame { max-width: 1000px; width: 100%; }
+    .eyebrow { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 0.66rem; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: #BFC0C0; margin-bottom: 0.5rem; }
+    h1 { font-family: 'Instrument Serif', serif; font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem); font-weight: 400; letter-spacing: -0.02em; line-height: 1.15; margin-bottom: 1.5rem; }
+    svg { width: 100%; min-width: 720px; height: auto; display: block; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Loop · Noether</p>
+    <h1>The keeper cycle</h1>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 628" role="img" aria-labelledby="keeper-loop-title keeper-loop-desc" class="dd-svg">
+<title id="keeper-loop-title">The keeper cycle</title>
+<desc id="keeper-loop-desc">The keeper bot runs a five-second cycle: it pushes signed prices every 30 seconds, liquidates isolated and cross positions, updates trailing-stop peaks after a push, executes triggered orders, applies funding hourly and extends contract TTLs every six hours, each phase writing its transactions to the chain.</desc>
+<style>.dd-sans{font-family:var(--font-inter,'Inter'),system-ui,sans-serif}.dd-mono{font-family:var(--font-jetbrains-mono,'JetBrains Mono'),ui-monospace,monospace}.dd-serif{font-family:var(--font-instrument-serif,'Instrument Serif'),Georgia,serif}</style>
+<defs>
+<marker id="keeper-loop-a" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#BFC0C0"/></marker>
+<marker id="keeper-loop-a-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#F08A59"/></marker>
+<marker id="keeper-loop-a-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#6A95D8"/></marker>
+<marker id="keeper-loop-a-open" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polyline points="0 0, 8 3, 0 6" fill="none" stroke="#BFC0C0" stroke-width="1.2"/></marker>
+</defs>
+<rect width="100%" height="100%" fill="#2D3142"/>
+<path d="M 400.000 88.697 A 200 200 0 0 1 469.458 139.101" fill="none" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#keeper-loop-a)"/>
+<path d="M 508.085 204.000 A 200 200 0 0 1 508.490 338.870" fill="none" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#keeper-loop-a)"/>
+<path d="M 470.253 404.000 A 200 200 0 0 1 401.098 454.820" fill="none" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#keeper-loop-a)"/>
+<path d="M 240.000 455.303 A 200 200 0 0 1 170.542 404.899" fill="none" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#keeper-loop-a)"/>
+<path d="M 131.915 340.000 A 200 200 0 0 1 131.510 205.130" fill="none" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#keeper-loop-a)"/>
+<path d="M 169.747 140.000 A 200 200 0 0 1 238.902 89.180" fill="none" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#keeper-loop-a)"/>
+<path d="M 320.000 104.000 L 320.000 214.000" fill="none" stroke="#BFC0C0" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#keeper-loop-a)"/>
+<path d="M 436.960 204.000 L 414.627 216.984" fill="none" stroke="#BFC0C0" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#keeper-loop-a)"/>
+<path d="M 436.960 340.000 L 414.627 327.016" fill="none" stroke="#BFC0C0" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#keeper-loop-a)"/>
+<path d="M 320.000 440.000 L 320.000 330.000" fill="none" stroke="#BFC0C0" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#keeper-loop-a)"/>
+<path d="M 203.040 340.000 L 225.373 327.016" fill="none" stroke="#BFC0C0" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#keeper-loop-a)"/>
+<path d="M 203.040 204.000 L 225.373 216.984" fill="none" stroke="#BFC0C0" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#keeper-loop-a)"/>
+<rect x="240" y="40" width="160" height="64" rx="6" fill="#2D3142"/>
+<rect x="240" y="40" width="160" height="64" rx="6" fill="#393E53" stroke="#F5F5F5" stroke-width="1"/>
+<text x="320" y="68" class="dd-sans" font-size="16" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="144">Push prices</text>
+<text x="320" y="87" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" data-maxw="144">every 30 s</text>
+<rect x="412" y="140" width="160" height="64" rx="6" fill="#2D3142"/>
+<rect x="412" y="140" width="160" height="64" rx="6" fill="rgba(240,138,89,0.10)" stroke="#F08A59" stroke-width="1"/>
+<text x="492" y="168" class="dd-sans" font-size="16" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="144">Liquidate</text>
+<text x="492" y="187" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" data-maxw="144">isolated, cross</text>
+<rect x="412" y="340" width="160" height="64" rx="6" fill="#2D3142"/>
+<rect x="412" y="340" width="160" height="64" rx="6" fill="#393E53" stroke="#F5F5F5" stroke-width="1"/>
+<text x="492" y="368" class="dd-sans" font-size="16" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="144">Trailing peaks</text>
+<text x="492" y="387" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" data-maxw="144">after a push</text>
+<rect x="240" y="440" width="160" height="64" rx="6" fill="#2D3142"/>
+<rect x="240" y="440" width="160" height="64" rx="6" fill="#393E53" stroke="#F5F5F5" stroke-width="1"/>
+<text x="320" y="468" class="dd-sans" font-size="16" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="144">Execute orders</text>
+<text x="320" y="487" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" data-maxw="144">limit, stops</text>
+<rect x="68" y="340" width="160" height="64" rx="6" fill="#2D3142"/>
+<rect x="68" y="340" width="160" height="64" rx="6" fill="#393E53" stroke="#F5F5F5" stroke-width="1"/>
+<text x="148" y="368" class="dd-sans" font-size="16" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="144">Apply funding</text>
+<text x="148" y="387" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" data-maxw="144">hourly</text>
+<rect x="68" y="140" width="160" height="64" rx="6" fill="#2D3142"/>
+<rect x="68" y="140" width="160" height="64" rx="6" fill="#393E53" stroke="#F5F5F5" stroke-width="1"/>
+<text x="148" y="168" class="dd-sans" font-size="16" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="144">Bump TTLs</text>
+<text x="148" y="187" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" data-maxw="144">every 6 h</text>
+<rect x="220" y="220" width="200" height="104" rx="8" fill="#F5F5F5" stroke="#F5F5F5" stroke-width="1"/>
+<text x="320" y="268" class="dd-sans" font-size="16" fill="#2D3142" text-anchor="middle" font-weight="600" data-maxw="184">Stellar testnet</text>
+<text x="320" y="288" class="dd-mono" font-size="12" fill="#2D3142" text-anchor="middle" data-maxw="184">contract state</text>
+<line x1="40" y1="544" x2="600" y2="544" stroke="rgba(245,245,245,0.12)" stroke-width="0.8"/>
+<text x="40" y="572" class="dd-mono" font-size="10" fill="#909AAE" text-anchor="start" letter-spacing="0.14em">LEGEND</text>
+<rect x="107" y="561" width="20" height="14" rx="3" fill="#393E53" stroke="#F5F5F5" stroke-width="1"/>
+<text x="135" y="572" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">Keeper phase</text>
+<rect x="245" y="561" width="20" height="14" rx="3" fill="rgba(240,138,89,0.10)" stroke="#F08A59" stroke-width="1"/>
+<text x="273" y="572" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">Liquidations</text>
+<rect x="383" y="561" width="20" height="14" rx="3" fill="#F5F5F5" stroke="#F5F5F5" stroke-width="1"/>
+<text x="411" y="572" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">Chain state</text>
+<path d="M 107,596 L 129,596" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#keeper-loop-a)"/>
+<text x="139" y="600" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">Next phase</text>
+<path d="M 235,596 L 257,596" stroke="#BFC0C0" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#keeper-loop-a)"/>
+<text x="267" y="600" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">Writes</text>
+</svg>
+  </div>
+</body>
+</html>

@@ -9,6 +9,15 @@ import { site } from '@/lib/site';
 const inter = localFont({ src: './fonts/Inter.woff2', weight: '100 900', display: 'swap', variable: '--font-inter' });
 const sora = localFont({ src: './fonts/Sora.woff2', weight: '100 800', display: 'swap', variable: '--font-sora' });
 const mono = localFont({ src: './fonts/JetBrainsMono.woff2', weight: '100 800', display: 'swap', variable: '--font-jetbrains-mono' });
+// Diagram callouts only (italic editorial asides), as on the app's landing page.
+const serif = localFont({
+  src: [
+    { path: './fonts/InstrumentSerif.woff2', weight: '400', style: 'normal' },
+    { path: './fonts/InstrumentSerifItalic.woff2', weight: '400', style: 'italic' },
+  ],
+  display: 'swap',
+  variable: '--font-instrument-serif',
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(site.url),
@@ -22,7 +31,7 @@ export const metadata: Metadata = {
 export default function Layout({ children }: { children: ReactNode }) {
   return (
     // Dark only, like the app. Theme switching is disabled in RootProvider.
-    <html lang="en" className={`dark ${inter.variable} ${sora.variable} ${mono.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`dark ${inter.variable} ${sora.variable} ${mono.variable} ${serif.variable}`} suppressHydrationWarning>
       <body className="flex flex-col min-h-screen">
         <a href="#main-content" className="noe-skip">
           Skip to content

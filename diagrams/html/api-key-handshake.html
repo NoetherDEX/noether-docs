@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Getting an API key</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: #2D3142; color: #F5F5F5; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 3rem 2rem; }
+    .frame { max-width: 1000px; width: 100%; }
+    .eyebrow { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 0.66rem; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: #BFC0C0; margin-bottom: 0.5rem; }
+    h1 { font-family: 'Instrument Serif', serif; font-size: clamp(1.5rem, 2.4vw + 0.75rem, 2rem); font-weight: 400; letter-spacing: -0.02em; line-height: 1.15; margin-bottom: 1.5rem; }
+    svg { width: 100%; min-width: 720px; height: auto; display: block; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Sequence · Noether</p>
+    <h1>Getting an API key</h1>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 728 744" role="img" aria-labelledby="api-key-handshake-title api-key-handshake-desc" class="dd-svg">
+<title id="api-key-handshake-title">Getting an API key</title>
+<desc id="api-key-handshake-desc">The client asks the gateway for a challenge, has the wallet sign an envelope that embeds it, exchanges the signed XDR for an API key after the gateway verifies the signature and the closed-beta allowlist, then sends the key with an X-Timestamp header on each authenticated request.</desc>
+<style>.dd-sans{font-family:var(--font-inter,'Inter'),system-ui,sans-serif}.dd-mono{font-family:var(--font-jetbrains-mono,'JetBrains Mono'),ui-monospace,monospace}.dd-serif{font-family:var(--font-instrument-serif,'Instrument Serif'),Georgia,serif}</style>
+<defs>
+<marker id="api-key-handshake-a" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#BFC0C0"/></marker>
+<marker id="api-key-handshake-a-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#F08A59"/></marker>
+<marker id="api-key-handshake-a-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#6A95D8"/></marker>
+<marker id="api-key-handshake-a-open" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polyline points="0 0, 8 3, 0 6" fill="none" stroke="#BFC0C0" stroke-width="1.2"/></marker>
+</defs>
+<rect width="100%" height="100%" fill="#2D3142"/>
+<line x1="104" y1="104" x2="104" y2="664" stroke="rgba(245,245,245,0.20)" stroke-width="1" stroke-dasharray="3,3"/>
+<line x1="304" y1="104" x2="304" y2="664" stroke="rgba(245,245,245,0.20)" stroke-width="1" stroke-dasharray="3,3"/>
+<line x1="504" y1="104" x2="504" y2="664" stroke="rgba(245,245,245,0.20)" stroke-width="1" stroke-dasharray="3,3"/>
+<path d="M 306,160 L 502,160" fill="none" stroke="#6A95D8" stroke-width="1.2" marker-end="url(#api-key-handshake-a-link)"/>
+<rect x="343" y="136" width="123" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="404" y="148" class="dd-mono" font-size="12" fill="#6F9ADD" text-anchor="middle" letter-spacing="0.06em" data-maxw="123">POST CHALLENGE</text>
+<path d="M 502,216 L 306,216" fill="none" stroke="#BFC0C0" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#api-key-handshake-a)"/>
+<rect x="347" y="192" width="115" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="404" y="204" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" letter-spacing="0.06em" data-maxw="115">CHALLENGE HEX</text>
+<path d="M 302,272 L 106,272" fill="none" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#api-key-handshake-a)"/>
+<rect x="147" y="248" width="115" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="204" y="260" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" letter-spacing="0.06em" data-maxw="115">SIGN ENVELOPE</text>
+<path d="M 106,328 L 302,328" fill="none" stroke="#BFC0C0" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#api-key-handshake-a)"/>
+<rect x="159" y="304" width="91" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="204" y="316" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" letter-spacing="0.06em" data-maxw="91">SIGNED XDR</text>
+<path d="M 306,384 L 502,384" fill="none" stroke="#6A95D8" stroke-width="1.2" marker-end="url(#api-key-handshake-a-link)"/>
+<rect x="347" y="360" width="115" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="404" y="372" class="dd-mono" font-size="12" fill="#6F9ADD" text-anchor="middle" letter-spacing="0.06em" data-maxw="115">POST /V1/KEYS</text>
+<path d="M 504,440 L 528,440 Q 536,440 536,448 L 536,456 Q 536,464 528,464 L 506,464" fill="none" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#api-key-handshake-a)"/>
+<rect x="544" y="444" width="107" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="550" y="456" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="start" letter-spacing="0.06em">VERIFY, BETA</text>
+<path d="M 502,512 L 306,512" fill="none" stroke="#F08A59" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#api-key-handshake-a-accent)"/>
+<rect x="371" y="488" width="67" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="404" y="500" class="dd-mono" font-size="12" fill="#F08A59" text-anchor="middle" letter-spacing="0.06em" data-maxw="67">API KEY</text>
+<path d="M 306,568 L 502,568" fill="none" stroke="#6A95D8" stroke-width="1.2" marker-end="url(#api-key-handshake-a-link)"/>
+<rect x="347" y="544" width="115" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="404" y="556" class="dd-mono" font-size="12" fill="#6F9ADD" text-anchor="middle" letter-spacing="0.06em" data-maxw="115">BEARER + TIME</text>
+<path d="M 502,624 L 306,624" fill="none" stroke="#BFC0C0" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#api-key-handshake-a)"/>
+<rect x="375" y="600" width="59" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="404" y="612" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" letter-spacing="0.06em" data-maxw="59">200 OK</text>
+<rect x="40" y="40" width="128" height="64" rx="6" fill="#2D3142"/>
+<rect x="40" y="40" width="128" height="64" rx="6" fill="rgba(191,192,192,0.10)" stroke="#8E98AC" stroke-width="1"/>
+<text x="104" y="68" class="dd-sans" font-size="16" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="112">Wallet</text>
+<text x="104" y="87" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" data-maxw="112">holds the key</text>
+<rect x="240" y="40" width="128" height="64" rx="6" fill="#2D3142"/>
+<rect x="240" y="40" width="128" height="64" rx="6" fill="#393E53" stroke="#F5F5F5" stroke-width="1"/>
+<text x="304" y="68" class="dd-sans" font-size="16" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="112">Client</text>
+<text x="304" y="87" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" data-maxw="112">SDK or script</text>
+<rect x="440" y="40" width="128" height="64" rx="6" fill="#2D3142"/>
+<rect x="440" y="40" width="128" height="64" rx="6" fill="#393E53" stroke="#F5F5F5" stroke-width="1"/>
+<text x="504" y="68" class="dd-sans" font-size="16" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="112">Gateway</text>
+<text x="504" y="87" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" data-maxw="112">noether-api</text>
+<line x1="40" y1="688" x2="688" y2="688" stroke="rgba(245,245,245,0.12)" stroke-width="0.8"/>
+<text x="40" y="716" class="dd-mono" font-size="10" fill="#909AAE" text-anchor="start" letter-spacing="0.14em">LEGEND</text>
+<path d="M 107,712 L 129,712" stroke="#6A95D8" stroke-width="1.2" marker-end="url(#api-key-handshake-a-link)"/>
+<text x="139" y="716" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">HTTP request</text>
+<path d="M 249,712 L 271,712" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#api-key-handshake-a)"/>
+<text x="281" y="716" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">Local call</text>
+<path d="M 377,712 L 399,712" stroke="#BFC0C0" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#api-key-handshake-a)"/>
+<text x="409" y="716" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">Response</text>
+<path d="M 492,712 L 514,712" stroke="#F08A59" stroke-width="1.2" marker-end="url(#api-key-handshake-a-accent)"/>
+<text x="524" y="716" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">Key issued</text>
+</svg>
+  </div>
+</body>
+</html>

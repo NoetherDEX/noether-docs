@@ -9,6 +9,7 @@ import { Steps, Step } from '@/components/steps';
 import { ScrollTable } from '@/components/scroll-table';
 import { Address, ContractsMeta, ContractsTable } from '@/components/contracts-table';
 import { MarketsTable } from '@/components/markets-table';
+import { Diagram } from '@/components/diagram';
 
 function textOf(node: ReactNode): string {
   if (node == null || typeof node === 'boolean') return '';
@@ -59,6 +60,7 @@ export function getMDXComponents(components?: MDXComponents) {
     ContractsMeta,
     Address,
     MarketsTable,
+    Diagram,
     ...components,
   } satisfies MDXComponents;
 }

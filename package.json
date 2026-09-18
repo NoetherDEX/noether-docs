@@ -11,7 +11,8 @@
     "fetch:openapi": "node scripts/fetch-openapi.mjs",
     "fetch:data": "node scripts/fetch-data.mjs",
     "generate:api": "node scripts/generate-api.mjs",
-    "fetch:all": "npm run fetch:openapi && npm run fetch:data && npm run generate:api"
+    "fetch:all": "npm run fetch:openapi && npm run fetch:data && npm run generate:api",
+    "diagrams": "node diagrams/build.mjs"
   },
   "dependencies": {
     "cn": "^0.2.6",
@@ -36,5 +37,5 @@
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2"
   },
-  "description": "Official documentation for Noether — decentralized perpetual futures exchange on Stellar"
+  "description": "Official documentation for Noether \u2014 decentralized perpetual futures exchange on Stellar"
 }

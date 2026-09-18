@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 744" role="img" aria-labelledby="liquidation-title liquidation-desc" class="dd-svg">
+<title id="liquidation-title">How an isolated position is liquidated</title>
+<desc id="liquidation-desc">A keeper checks each position: if equity is still above the 2% maintenance margin nothing happens; a bankrupt position is closed at once with its collateral going to the vault; a position above $1,000 notional is reduced by 20% and re-checked after at least 30 seconds; anything else is closed in full with a 1% penalty and the remaining equity refunded.</desc>
+<style>.dd-sans{font-family:var(--font-inter,'Inter'),system-ui,sans-serif}.dd-mono{font-family:var(--font-jetbrains-mono,'JetBrains Mono'),ui-monospace,monospace}.dd-serif{font-family:var(--font-instrument-serif,'Instrument Serif'),Georgia,serif}</style>
+<defs>
+<marker id="liquidation-a" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#BFC0C0"/></marker>
+<marker id="liquidation-a-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#F08A59"/></marker>
+<marker id="liquidation-a-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#6A95D8"/></marker>
+<marker id="liquidation-a-open" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polyline points="0 0, 8 3, 0 6" fill="none" stroke="#BFC0C0" stroke-width="1.2"/></marker>
+</defs>
+<rect width="100%" height="100%" fill="#2D3142"/>
+<path d="M 240,88 L 240,120" fill="none" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#liquidation-a)"/>
+<path d="M 340,176 L 440,176" fill="none" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#liquidation-a)"/>
+<path d="M 240,232 L 240,264" fill="none" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#liquidation-a)"/>
+<path d="M 340,320 L 440,320" fill="none" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#liquidation-a)"/>
+<path d="M 240,376 L 240,408" fill="none" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#liquidation-a)"/>
+<path d="M 340,464 L 440,464" fill="none" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#liquidation-a)"/>
+<path d="M 240,520 L 240,560" fill="none" stroke="#F08A59" stroke-width="1.2" marker-end="url(#liquidation-a-accent)"/>
+<path d="M 160,592 L 88,592 Q 80,592 80,584 L 80,184 Q 80,176 88,176 L 140,176" fill="none" stroke="#BFC0C0" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#liquidation-a)"/>
+<rect x="376" y="152" width="28" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="390" y="164" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" letter-spacing="0.06em" data-maxw="28">NO</text>
+<rect x="248" y="240" width="36" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="266" y="252" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" letter-spacing="0.06em" data-maxw="36">YES</text>
+<rect x="372" y="296" width="36" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="390" y="308" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" letter-spacing="0.06em" data-maxw="36">YES</text>
+<rect x="248" y="384" width="28" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="262" y="396" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" letter-spacing="0.06em" data-maxw="28">NO</text>
+<rect x="376" y="440" width="28" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="390" y="452" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" letter-spacing="0.06em" data-maxw="28">NO</text>
+<rect x="248" y="532" width="36" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="266" y="544" class="dd-mono" font-size="12" fill="#F08A59" text-anchor="middle" letter-spacing="0.06em" data-maxw="36">YES</text>
+<rect x="88" y="384" width="91" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="133.5" y="396" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" letter-spacing="0.06em" data-maxw="91">AFTER 30 S</text>
+<rect x="140" y="40" width="200" height="48" rx="24" fill="#2D3142"/>
+<rect x="140" y="40" width="200" height="48" rx="24" fill="rgba(191,192,192,0.10)" stroke="#8E98AC" stroke-width="1"/>
+<text x="240" y="70" class="dd-sans" font-size="16" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="176">Keeper check</text>
+<polygon points="240,120 340,176 240,232 140,176" fill="#2D3142"/>
+<polygon points="240,120 340,176 240,232 140,176" fill="#393E53" stroke="#F5F5F5" stroke-width="1"/>
+<text x="240" y="172" class="dd-sans" font-size="14" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="124">Equity below</text>
+<text x="240" y="192" class="dd-sans" font-size="14" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="124">maintenance?</text>
+<polygon points="240,264 340,320 240,376 140,320" fill="#2D3142"/>
+<polygon points="240,264 340,320 240,376 140,320" fill="#393E53" stroke="#F5F5F5" stroke-width="1"/>
+<text x="240" y="326" class="dd-sans" font-size="14" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="124">Bankrupt?</text>
+<polygon points="240,408 340,464 240,520 140,464" fill="#2D3142"/>
+<polygon points="240,408 340,464 240,520 140,464" fill="#393E53" stroke="#F5F5F5" stroke-width="1"/>
+<text x="240" y="460" class="dd-sans" font-size="14" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="124">Size above</text>
+<text x="240" y="480" class="dd-sans" font-size="14" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="124">$1,000?</text>
+<rect x="440" y="152" width="200" height="48" rx="24" fill="#2D3142"/>
+<rect x="440" y="152" width="200" height="48" rx="24" fill="rgba(191,192,192,0.10)" stroke="#8E98AC" stroke-width="1"/>
+<text x="540" y="182" class="dd-sans" font-size="16" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="176">No action</text>
+<rect x="440" y="288" width="200" height="64" rx="6" fill="#2D3142"/>
+<rect x="440" y="288" width="200" height="64" rx="6" fill="#393E53" stroke="#F5F5F5" stroke-width="1"/>
+<text x="540" y="316" class="dd-sans" font-size="16" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="184">Close all</text>
+<text x="540" y="335" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" data-maxw="184">collateral to vault</text>
+<rect x="440" y="432" width="200" height="64" rx="6" fill="#2D3142"/>
+<rect x="440" y="432" width="200" height="64" rx="6" fill="#393E53" stroke="#F5F5F5" stroke-width="1"/>
+<text x="540" y="460" class="dd-sans" font-size="16" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="184">Close in full</text>
+<text x="540" y="479" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" data-maxw="184">1% penalty, refund</text>
+<rect x="160" y="560" width="160" height="64" rx="6" fill="#2D3142"/>
+<rect x="160" y="560" width="160" height="64" rx="6" fill="rgba(240,138,89,0.10)" stroke="#F08A59" stroke-width="1"/>
+<text x="240" y="588" class="dd-sans" font-size="16" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="144">Close 20%</text>
+<text x="240" y="607" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" data-maxw="144">then wait 30 s</text>
+<path d="M 540,500 L 540,516" fill="none" stroke="#BFC0C0" stroke-width="1" stroke-dasharray="3,3"/>
+<text x="440" y="536" class="dd-serif" font-size="16" fill="#BFC0C0" text-anchor="start" font-style="italic">Penalty: 1% of the size closed,</text>
+<text x="440" y="556" class="dd-serif" font-size="16" fill="#BFC0C0" text-anchor="start" font-style="italic">half to the keeper, half to</text>
+<text x="440" y="576" class="dd-serif" font-size="16" fill="#BFC0C0" text-anchor="start" font-style="italic">the insurance buffer.</text>
+<line x1="40" y1="660" x2="640" y2="660" stroke="rgba(245,245,245,0.12)" stroke-width="0.8"/>
+<text x="40" y="688" class="dd-mono" font-size="10" fill="#909AAE" text-anchor="start" letter-spacing="0.14em">LEGEND</text>
+<rect x="107" y="677" width="20" height="14" rx="3" fill="rgba(191,192,192,0.10)" stroke="#8E98AC" stroke-width="1"/>
+<text x="135" y="688" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">Start or end</text>
+<polygon points="255,675 265,684 255,693 245,684" fill="#393E53" stroke="#F5F5F5" stroke-width="1"/>
+<text x="273" y="688" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">Decision</text>
+<rect x="356" y="677" width="20" height="14" rx="3" fill="#393E53" stroke="#F5F5F5" stroke-width="1"/>
+<text x="384" y="688" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">Close</text>
+<rect x="446" y="677" width="20" height="14" rx="3" fill="rgba(240,138,89,0.10)" stroke="#F08A59" stroke-width="1"/>
+<text x="474" y="688" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">Partial step</text>
+<path d="M 107,712 L 129,712" stroke="#F08A59" stroke-width="1.2" marker-end="url(#liquidation-a-accent)"/>
+<text x="139" y="716" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">Partial path</text>
+<path d="M 249,712 L 271,712" stroke="#BFC0C0" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#liquidation-a)"/>
+<text x="281" y="716" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">Re-check</text>
+</svg>

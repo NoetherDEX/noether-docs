@@ -1,0 +1,90 @@
+[
+  {
+    "slug": "system-overview",
+    "title": "Noether system overview",
+    "desc": "The web app and the keeper send transactions through the Noether Router, which relays signed Noeracle prices on-chain and calls the market; the market reads prices through the shim, settles with the vault, and emits events that the indexer projects for the API gateway.",
+    "w": 840,
+    "h": 732,
+    "bytes": 35900
+  },
+  {
+    "slug": "life-of-a-trade",
+    "title": "Life of a trade",
+    "desc": "Opening a position: the app fetches a signed Noeracle round, the trader signs one transaction, and inside it the router verifies and relays the price, the market reads it back and runs its risk checks, the vault reserves the payout and takes the fee, and the position_opened event returns to the app.",
+    "w": 848,
+    "h": 832,
+    "bytes": 26949
+  },
+  {
+    "slug": "price-path",
+    "title": "How a price reaches the market",
+    "desc": "Noeracle signs price rounds off-chain; the keeper pushes them on-chain on a heartbeat and the router relays a fresh round inside each trade, both into the Noeracle contract; the market reads the stored price through the SEP-40 shim and rejects prices older than 60 seconds on risk-increasing actions.",
+    "w": 840,
+    "h": 696,
+    "bytes": 30619
+  },
+  {
+    "slug": "liquidation",
+    "title": "How an isolated position is liquidated",
+    "desc": "A keeper checks each position: if equity is still above the 2% maintenance margin nothing happens; a bankrupt position is closed at once with its collateral going to the vault; a position above $1,000 notional is reduced by 20% and re-checked after at least 30 seconds; anything else is closed in full with a 1% penalty and the remaining equity refunded.",
+    "w": 680,
+    "h": 744,
+    "bytes": 34930
+  },
+  {
+    "slug": "api-key-handshake",
+    "title": "Getting an API key",
+    "desc": "The client asks the gateway for a challenge, has the wallet sign an envelope that embeds it, exchanges the signed XDR for an API key after the gateway verifies the signature and the closed-beta allowlist, then sends the key with an X-Timestamp header on each authenticated request.",
+    "w": 728,
+    "h": 744,
+    "bytes": 24401
+  },
+  {
+    "slug": "prepare-sign-submit",
+    "title": "Prepare, sign, submit",
+    "desc": "A trade through the gateway: the client asks the gateway to prepare a simulated, unsigned transaction, signs it locally with the wallet so the key never reaches the gateway, submits the signed XDR, and the gateway sends it to the Stellar network and reports the final status.",
+    "w": 748,
+    "h": 772,
+    "bytes": 22055
+  },
+  {
+    "slug": "first-trade",
+    "title": "Your first trade",
+    "desc": "Six steps from an empty browser to a closed position: add a wallet set to Testnet, activate it through Friendbot, add the USDC trustline, claim test USDC, open a position and close it, with the wallet signatures each step needs.",
+    "w": 776,
+    "h": 376,
+    "bytes": 19781
+  },
+  {
+    "slug": "vault-flow",
+    "title": "Where the protocol vault money goes",
+    "desc": "Depositors put USDC into the protocol vault, which takes the other side of every trade: trader fees and losses flow in and trader profits flow out; the vault routes a protocol share of fees into the insurance buffer, and to the treasury once the buffer is full; half of each liquidation penalty also goes to the buffer, which pays winning traders first.",
+    "w": 840,
+    "h": 452,
+    "bytes": 31694
+  },
+  {
+    "slug": "referral-flow",
+    "title": "How a referral pays out",
+    "desc": "A referrer creates a code and shares the link, the referee binds to it once, and on every referee trade the market asks the referral registry for the split, charges the referee 4% less, sends 10% of the original fee to the registry as USDC, and the referrer claims it.",
+    "w": 748,
+    "h": 800,
+    "bytes": 26474
+  },
+  {
+    "slug": "trader-vaults",
+    "title": "How a trader vault works",
+    "desc": "A leader creates a vault and seeds it, depositors buy shares at full NAV while the leader keeps at least 5% of them, the leader trades the pooled USDC through the vault factory so positions belong to the vault, depositors withdraw at NAV, and the leader claims 10% of gains above the high-water mark.",
+    "w": 776,
+    "h": 856,
+    "bytes": 24301
+  },
+  {
+    "slug": "keeper-loop",
+    "title": "The keeper cycle",
+    "desc": "The keeper bot runs a five-second cycle: it pushes signed prices every 30 seconds, liquidates isolated and cross positions, updates trailing-stop peaks after a push, executes triggered orders, applies funding hourly and extends contract TTLs every six hours, each phase writing its transactions to the chain.",
+    "w": 640,
+    "h": 628,
+    "bytes": 23999
+  }
+]
