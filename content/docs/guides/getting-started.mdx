@@ -1,0 +1,88 @@
+---
+title: "Getting started"
+description: "Install a Stellar wallet, activate it, claim test USDC from the Faucet, open a first position and close it again, in about ten minutes."
+---
+
+This guide takes you from an empty browser to your first perpetual futures trade on Noether. You need about ten minutes, a browser wallet or a mobile Stellar wallet, and nothing else: every asset you will use is free test money.
+
+<Diagram name="first-trade" caption="Three wallet signatures in total: the trustline, the open and the close. Activation and the USDC claim need none." />
+
+<Steps level={2}>
+
+## Install a Stellar wallet
+
+The connect dialog is built on the Stellar Wallets Kit, so it offers the usual Stellar wallets: extensions such as [Freighter](https://www.freighter.app/), xBull, Albedo, Rabet, Hana and LOBSTR, plus WalletConnect for mobile wallets. Freighter is the simplest choice for a desktop browser.
+
+After installing, open your wallet's settings and switch the network to Testnet. Noether runs entirely on the Stellar testnet, so a wallet pointed at the public network cannot sign anything here.
+
+<Callout type="warning" title="LON wallet">
+The LON wallet is not supported. It does not correctly sign the Soroban authorizations Noether's contracts require, so its transactions fail. Use Freighter or LOBSTR instead.
+</Callout>
+
+## Connect on testnet.noether.exchange
+
+1. Open [https://testnet.noether.exchange](https://testnet.noether.exchange). The gold Testnet pill next to the logo is expected.
+2. Click Connect Wallet in the top right.
+3. The dialog lists WalletConnect first, for LOBSTR and other mobile wallets (it shows a QR code to scan), then extension wallets under an Extensions divider. Wallets you have not installed are dimmed, with an Install link.
+4. Pick your wallet and approve the connection in its popup.
+
+Once connected, the header button shows your shortened address. Clicking it opens a dropdown with your USDC (collateral) and XLM (gas) balances, a View on Explorer link, and Switch Wallet and Disconnect actions. Connecting itself signs no transaction, and the session is remembered, so returning later reconnects silently.
+
+<Callout type="warning" title="Restricted regions">
+The Terms of Service exclude residents and citizens of, and anyone connecting from, the United States, Ontario (Canada) and jurisdictions under comprehensive sanctions (Cuba, Iran, North Korea, Syria, Russia and Belarus), and they prohibit using a VPN to disguise your location. The app can also block those regions by IP on the Trade, Portfolio, Earn and Vaults pages, showing a "Trading not available in your region" page instead.
+</Callout>
+
+## Activate the wallet with testnet XLM
+
+A brand-new Stellar account does not exist on the network until it holds some XLM. Noether handles this for you:
+
+1. Go to the Faucet page (the Faucet link in the header, or [https://testnet.noether.exchange/faucet](https://testnet.noether.exchange/faucet)).
+2. If your account is new, the page shows Wallet Not Active with an Activate Wallet button.
+3. Click it. The app asks Stellar's public Friendbot service to create and fund your account with testnet XLM; no signature is needed.
+
+If your account was already funded, for example by another faucet, the page skips this state and goes straight to the trustline step.
+
+XLM pays network fees for every transaction you sign. Keep at least 1 XLM in the account: the balance dropdown shows a red "Low" tag on XLM below that.
+
+## Get test USDC from the faucet
+
+Trading is collateralized in test USDC, which the same page hands out in two short steps:
+
+1. Add the USDC trustline. Stellar accounts must opt in to each asset they hold. Click Add USDC Trustline and approve the transaction in your wallet. It is a one-time setup and your first wallet signature; the card switches to Trustline Active when it is done.
+2. Claim USDC. Pick an amount, exactly 100, 500 or 1000 USDC per claim, and click Claim. The claim itself needs no wallet signature: the faucet server sends the payment to your address, usually within seconds.
+
+Claims are limited to 1,000 USDC per address per day, and the day rolls over at midnight UTC. The page shows a progress bar of today's usage and, once the limit is reached, a live countdown to the reset. A Claim History section lists your past claims with transaction links. The limit is enforced from your account's on-chain payment history, so clearing your browser does not reset it.
+
+## Place your first trade
+
+Head to the Trade page ([https://testnet.noether.exchange/trade](https://testnet.noether.exchange/trade)):
+
+1. Pick a pair. The selector next to the chart lists 13 perpetual pairs (BTC, ETH, XLM, SOL, XRP, ADA, BNB, TRX, DOGE, ZEC, LINK, BCH and LTC, each as `SYM-PERP`), with a live price for each. BTC-PERP is selected by default.
+2. Choose a direction in the order panel: Long (you profit if the price rises) or Short (you profit if it falls). Leave the order type on Market and the margin mode on Isolated for your first trade.
+3. Enter collateral in the "Pay (Collateral)" field, the USDC locked to back the position. The minimum is 10 USDC, and quick-fill buttons use 25, 50, 75 or 100% of your balance. The trading fee is deducted from this collateral.
+4. Set leverage with the slider, from 1x to 10x. Leverage multiplies your position size, and how fast a price move reaches your liquidation price. The readout turns gold at 5x and red at 8x as a nudge to stay careful. Position size (collateral times leverage) is capped at $100,000 per position.
+5. Review the order summary. It shows your position size, entry price, estimated liquidation price and the estimated fee: 0.050% of position size for a market order at the base tier. When the app can read your 14-day trading volume, the fee already reflects your tier; when it cannot, it quotes the base-tier fee and marks it as an estimate. If anything is off, the panel shows a validation message instead of letting you submit.
+6. Optionally set a take-profit or stop-loss in the panel. These are attached right after the position opens and each costs one extra signature.
+7. Click Buy / Long (or Sell / Short) and approve one transaction in your wallet. That signature covers both the trade and the USDC transfer.
+
+A toast confirms the open, your balance refreshes, and the new position appears in the Positions tab below the chart.
+
+## Watch and close the position
+
+The Positions tab shows each open position's size, entry and live mark price, liquidation price and live PnL, updating from the oracle price stream. A warning triangle appears if the mark gets within 10% of your liquidation price.
+
+To exit:
+
+1. Click the Close Position button on the row.
+2. A confirmation dialog shows the position and its unrealized PnL. For an isolated position you can close part of it: pick 25%, 50% or 75%, or Max for all of it. A partial close that would leave less than 10 USDC of collateral behind closes the whole position instead, and the dialog marks it as snapped to 100%.
+3. Confirm and approve one wallet signature.
+
+Closing a position charges no trading fee; you paid the fee when you opened. Any funding that accrued while the position was open is settled at close.
+
+</Steps>
+
+## Where to next
+
+- [Trading](/guides/trading): margin modes, limit and stop orders, take-profit and stop-loss, fees and fee tiers, funding, and liquidation in depth.
+- [FAQ](/guides/faq): quick answers on the testnet, wallets and limits.
+- [Earn: protocol vault](/guides/vault): earn from the trading pool instead of trading against it.

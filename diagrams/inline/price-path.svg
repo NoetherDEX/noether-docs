@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 696" role="img" aria-labelledby="price-path-title price-path-desc" class="dd-svg">
+<title id="price-path-title">How a price reaches the market</title>
+<desc id="price-path-desc">Noeracle signs price rounds off-chain; the keeper pushes them on-chain on a heartbeat and the router relays a fresh round inside each trade, both into the Noeracle contract; the market reads the stored price through the SEP-40 shim and rejects prices older than 60 seconds on risk-increasing actions.</desc>
+<style>.dd-sans{font-family:var(--font-inter,'Inter'),system-ui,sans-serif}.dd-mono{font-family:var(--font-jetbrains-mono,'JetBrains Mono'),ui-monospace,monospace}.dd-serif{font-family:var(--font-instrument-serif,'Instrument Serif'),Georgia,serif}</style>
+<defs>
+<marker id="price-path-a" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#BFC0C0"/></marker>
+<marker id="price-path-a-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#F08A59"/></marker>
+<marker id="price-path-a-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#6A95D8"/></marker>
+<marker id="price-path-a-open" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polyline points="0 0, 8 3, 0 6" fill="none" stroke="#BFC0C0" stroke-width="1.2"/></marker>
+</defs>
+<rect width="100%" height="100%" fill="#2D3142"/>
+<rect x="40" y="40" width="760" height="244" rx="8" fill="rgba(245,245,245,0.02)" stroke="rgba(245,245,245,0.10)" stroke-width="0.8"/>
+<rect x="52" y="48" width="78" height="16" rx="2" fill="#2D3142"/>
+<text x="91" y="60" class="dd-mono" font-size="10" fill="#909AAE" text-anchor="middle" letter-spacing="0.14em">OFF-CHAIN</text>
+<rect x="40" y="320" width="760" height="260" rx="8" fill="rgba(245,245,245,0.02)" stroke="rgba(245,245,245,0.10)" stroke-width="0.8"/>
+<rect x="322" y="328" width="196" height="16" rx="2" fill="#2D3142"/>
+<text x="420" y="340" class="dd-mono" font-size="10" fill="#909AAE" text-anchor="middle" letter-spacing="0.14em">STELLAR TESTNET · SOROBAN</text>
+<path d="M 220,112 L 340,112" fill="none" stroke="#6A95D8" stroke-width="1.2" marker-end="url(#price-path-a-link)"/>
+<path d="M 380,144 L 380,164 Q 380,172 372,172 L 148,172 Q 140,172 140,180 L 140,200" fill="none" stroke="#6A95D8" stroke-width="1.2" marker-end="url(#price-path-a-link)"/>
+<path d="M 460,144 L 460,164 Q 460,172 468,172 L 692,172 Q 700,172 700,180 L 700,200" fill="none" stroke="#6A95D8" stroke-width="1.2" marker-end="url(#price-path-a-link)"/>
+<path d="M 140,264 L 140,360" fill="none" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#price-path-a)"/>
+<path d="M 700,264 L 700,360" fill="none" stroke="#F08A59" stroke-width="1.2" marker-end="url(#price-path-a-accent)"/>
+<path d="M 620,392 L 220,392" fill="none" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#price-path-a)"/>
+<path d="M 700,424 L 700,496" fill="none" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#price-path-a)"/>
+<path d="M 620,528 L 220,528" fill="none" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#price-path-a)"/>
+<path d="M 140,496 L 140,424" fill="none" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#price-path-a)"/>
+<rect x="251" y="88" width="59" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="280" y="100" class="dd-mono" font-size="12" fill="#6F9ADD" text-anchor="middle" letter-spacing="0.06em" data-maxw="59">PRICES</text>
+<rect x="231" y="148" width="59" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="260" y="160" class="dd-mono" font-size="12" fill="#6F9ADD" text-anchor="middle" letter-spacing="0.06em" data-maxw="59">ROUNDS</text>
+<rect x="527" y="148" width="107" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="580" y="160" class="dd-mono" font-size="12" fill="#6F9ADD" text-anchor="middle" letter-spacing="0.06em" data-maxw="107">LATEST ROUND</text>
+<rect x="148" y="304" width="91" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="193.5" y="316" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" letter-spacing="0.06em" data-maxw="91">BATCH PUSH</text>
+<rect x="633" y="304" width="59" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="662.5" y="316" class="dd-mono" font-size="12" fill="#F08A59" text-anchor="middle" letter-spacing="0.06em" data-maxw="59">ONE TX</text>
+<rect x="371" y="368" width="99" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="420" y="380" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" letter-spacing="0.06em" data-maxw="99">RELAY ROUND</text>
+<rect x="708" y="452" width="67" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="741.5" y="464" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" letter-spacing="0.06em" data-maxw="67">EXECUTE</text>
+<rect x="379" y="504" width="83" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="420" y="516" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" letter-spacing="0.06em" data-maxw="83">LASTPRICE</text>
+<rect x="148" y="452" width="123" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="209.5" y="464" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" letter-spacing="0.06em" data-maxw="123">GET_PRICE_PERS</text>
+<rect x="60" y="80" width="160" height="64" rx="6" fill="#2D3142"/>
+<rect x="60" y="80" width="160" height="64" rx="6" fill="rgba(245,245,245,0.03)" stroke="#8E98AC" stroke-width="1"/>
+<text x="140" y="108" class="dd-sans" font-size="16" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="144">Price sources</text>
+<text x="140" y="127" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" data-maxw="144">market data</text>
+<rect x="340" y="80" width="160" height="64" rx="6" fill="#2D3142"/>
+<rect x="340" y="80" width="160" height="64" rx="6" fill="rgba(245,245,245,0.03)" stroke="#8E98AC" stroke-width="1"/>
+<text x="420" y="108" class="dd-sans" font-size="16" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="144">Noeracle API</text>
+<text x="420" y="127" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" data-maxw="144">signs each round</text>
+<rect x="60" y="200" width="160" height="64" rx="6" fill="#2D3142"/>
+<rect x="60" y="200" width="160" height="64" rx="6" fill="#393E53" stroke="#F5F5F5" stroke-width="1"/>
+<text x="140" y="228" class="dd-sans" font-size="16" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="144">Keeper</text>
+<text x="140" y="247" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" data-maxw="144">heartbeat push</text>
+<rect x="620" y="200" width="160" height="64" rx="6" fill="#2D3142"/>
+<rect x="620" y="200" width="160" height="64" rx="6" fill="rgba(191,192,192,0.10)" stroke="#8E98AC" stroke-width="1"/>
+<text x="700" y="228" class="dd-sans" font-size="16" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="144">Web app</text>
+<text x="700" y="247" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" data-maxw="144">at trade time</text>
+<rect x="60" y="360" width="160" height="64" rx="6" fill="#2D3142"/>
+<rect x="60" y="360" width="160" height="64" rx="6" fill="rgba(245,245,245,0.05)" stroke="#BFC0C0" stroke-width="1"/>
+<text x="140" y="388" class="dd-sans" font-size="16" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="144">Noeracle</text>
+<text x="140" y="407" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" data-maxw="144">stored rounds</text>
+<rect x="620" y="360" width="160" height="64" rx="6" fill="#2D3142"/>
+<rect x="620" y="360" width="160" height="64" rx="6" fill="rgba(240,138,89,0.10)" stroke="#F08A59" stroke-width="1"/>
+<text x="700" y="388" class="dd-sans" font-size="16" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="144">Noether Router</text>
+<text x="700" y="407" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" data-maxw="144">relays in-tx</text>
+<rect x="60" y="496" width="160" height="64" rx="6" fill="#2D3142"/>
+<rect x="60" y="496" width="160" height="64" rx="6" fill="#393E53" stroke="#F5F5F5" stroke-width="1"/>
+<text x="140" y="524" class="dd-sans" font-size="16" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="144">Noeracle shim</text>
+<text x="140" y="543" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" data-maxw="144">SEP-40 read</text>
+<rect x="620" y="496" width="160" height="64" rx="6" fill="#2D3142"/>
+<rect x="620" y="496" width="160" height="64" rx="6" fill="#393E53" stroke="#F5F5F5" stroke-width="1"/>
+<text x="700" y="524" class="dd-sans" font-size="16" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="144">Market</text>
+<text x="700" y="543" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" data-maxw="144">max age 60 s</text>
+<line x1="40" y1="612" x2="800" y2="612" stroke="rgba(245,245,245,0.12)" stroke-width="0.8"/>
+<text x="40" y="640" class="dd-mono" font-size="10" fill="#909AAE" text-anchor="start" letter-spacing="0.14em">LEGEND</text>
+<rect x="107" y="629" width="20" height="14" rx="3" fill="rgba(240,138,89,0.10)" stroke="#F08A59" stroke-width="1"/>
+<text x="135" y="640" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">Relays in the trade tx</text>
+<rect x="313" y="629" width="20" height="14" rx="3" fill="#393E53" stroke="#F5F5F5" stroke-width="1"/>
+<text x="341" y="640" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">Contract or service</text>
+<rect x="499" y="629" width="20" height="14" rx="3" fill="rgba(245,245,245,0.05)" stroke="#BFC0C0" stroke-width="1"/>
+<text x="527" y="640" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">Price store</text>
+<rect x="630" y="629" width="20" height="14" rx="3" fill="rgba(245,245,245,0.03)" stroke="#8E98AC" stroke-width="1"/>
+<text x="658" y="640" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">External</text>
+<rect x="741" y="629" width="20" height="14" rx="3" fill="rgba(191,192,192,0.10)" stroke="#8E98AC" stroke-width="1"/>
+<text x="769" y="640" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">User</text>
+<path d="M 107,664 L 129,664" stroke="#F08A59" stroke-width="1.2" marker-end="url(#price-path-a-accent)"/>
+<text x="139" y="668" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">Signed trade</text>
+<path d="M 249,664 L 271,664" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#price-path-a)"/>
+<text x="281" y="668" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">Contract call</text>
+<path d="M 398,664 L 420,664" stroke="#6A95D8" stroke-width="1.2" marker-end="url(#price-path-a-link)"/>
+<text x="430" y="668" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">HTTP</text>
+</svg>

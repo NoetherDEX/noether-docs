@@ -1,11 +1,17 @@
-import nextra from 'nextra'
+import { createMDX } from 'fumadocs-mdx/next';
 
-const withNextra = nextra({
-  theme: 'nextra-theme-docs',
-  themeConfig: './theme.config.tsx',
-  defaultShowCopyCode: true
-})
+const withMDX = createMDX();
 
-export default withNextra({
-  reactStrictMode: true
-})
+/** @type {import('next').NextConfig} */
+const config = {
+  reactStrictMode: true,
+  async redirects() {
+    return [
+      { source: '/developers/api-explorer', destination: '/developers/reference', permanent: true },
+      { source: '/docs', destination: '/', permanent: true },
+      { source: '/docs/:path*', destination: '/:path*', permanent: true },
+    ];
+  },
+};
+
+export default withMDX(config);

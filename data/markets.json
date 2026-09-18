@@ -1,0 +1,103 @@
+{
+  "fetchedAt": "2026-09-18T07:49:00.570Z",
+  "count": 16,
+  "openCount": 14,
+  "markets": [
+    {
+      "symbol": "BTC",
+      "name": "Bitcoin",
+      "decimals": 8,
+      "status": "open"
+    },
+    {
+      "symbol": "ETH",
+      "name": "Ethereum",
+      "decimals": 8,
+      "status": "open"
+    },
+    {
+      "symbol": "XLM",
+      "name": "Stellar Lumens",
+      "decimals": 7,
+      "status": "open"
+    },
+    {
+      "symbol": "SOL",
+      "name": "Solana",
+      "decimals": 7,
+      "status": "open"
+    },
+    {
+      "symbol": "XRP",
+      "name": "XRP",
+      "decimals": 7,
+      "status": "open"
+    },
+    {
+      "symbol": "ADA",
+      "name": "Cardano",
+      "decimals": 7,
+      "status": "open"
+    },
+    {
+      "symbol": "BNB",
+      "name": "BNB",
+      "decimals": 7,
+      "status": "open"
+    },
+    {
+      "symbol": "TRX",
+      "name": "Tron",
+      "decimals": 7,
+      "status": "open"
+    },
+    {
+      "symbol": "HYPE",
+      "name": "Hyperliquid",
+      "decimals": 7,
+      "status": "open"
+    },
+    {
+      "symbol": "DOGE",
+      "name": "Dogecoin",
+      "decimals": 7,
+      "status": "open"
+    },
+    {
+      "symbol": "ZEC",
+      "name": "Zcash",
+      "decimals": 7,
+      "status": "open"
+    },
+    {
+      "symbol": "LINK",
+      "name": "Chainlink",
+      "decimals": 7,
+      "status": "open"
+    },
+    {
+      "symbol": "BCH",
+      "name": "Bitcoin Cash",
+      "decimals": 7,
+      "status": "open"
+    },
+    {
+      "symbol": "LTC",
+      "name": "Litecoin",
+      "decimals": 7,
+      "status": "open"
+    },
+    {
+      "symbol": "PUMP",
+      "name": "Pump.fun",
+      "decimals": 7,
+      "status": "not-open"
+    },
+    {
+      "symbol": "UNI",
+      "name": "Uniswap",
+      "decimals": 7,
+      "status": "not-open"
+    }
+  ]
+}

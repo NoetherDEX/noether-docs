@@ -1,0 +1,219 @@
+---
+title: "Vaults"
+description: "Trader Vault marketplace rows with computed aggregates, single-vault detail with full NAV, and the trade, deposit, withdraw and fee-claim feeds."
+---
+
+Reference for the Trader Vault endpoints: the marketplace list, single-vault detail, and per-vault history feeds (trades, deposits, withdraws, fee claims). All six endpoints are public; no API key is required. For what Trader Vaults are and how to use them from the app, see [Trader Vaults](/guides/trader-vaults).
+
+Base URL: `https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io`. The list and history feeds are served from indexer projections, not live chain reads, so data can lag the chain; check `indexer.ledgerAgeSeconds` on [`GET /v1/health`](/developers/rest-api/system) to see how fresh the read side is. Money fields are strings of 7-decimal fixed-point USDC integers (`"10000000"` is 1 USDC); `*Bps` fields are plain basis points. Two timestamp units appear in vault payloads: `createdAt` and `ts` are unix seconds, `updatedAt` is milliseconds since epoch.
+
+## `GET /v1/vaults`
+
+Lists all Trader Vaults, newest first, with computed aggregates. The aggregates (`depositorCount`, `openPositions`, `tradeCount`, `drawdownBps`, `apyBps`, `apyKind`, `closedTradePnl`) are computed per vault and cached for 10 seconds.
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `leader` | string (56 chars) | no | Filter to vaults led by this Stellar address |
+| `limit` | integer, 1 to 200 | no | Rows to return. Default 50 |
+
+### Example
+
+```bash
+curl -s "https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/vaults?limit=1"
+```
+
+```json
+{
+  "vaults": [
+    {
+      "id": 0,
+      "leader": "GCAAZWLEY65OHIDYXS6LVHVW7VHGFNFJ3UYBXSRLIRQMCD5NLCZTL3HZ",
+      "name": "bigbig",
+      "createdAt": 1787341737,
+      "totalUsdc": "11000000000",
+      "circulatingShares": "11000000000",
+      "hwmNav": "10000000",
+      "realizedPnl": "0",
+      "leaderShares": "1000000000",
+      "profitShareBps": 1000,
+      "paused": false,
+      "updatedAt": 1787779347156,
+      "depositorCount": 2,
+      "openPositions": 0,
+      "tradeCount": 0,
+      "drawdownBps": 0,
+      "apyBps": 0,
+      "apyKind": "annualized",
+      "closedTradePnl": "0"
+    }
+  ]
+}
+```
+
+### Vault object fields
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | integer | Vault id (used in the path of the other five endpoints) |
+| `leader` | string | Leader's Stellar address |
+| `name` | string | Vault name |
+| `createdAt` | integer | Creation time, unix seconds |
+| `totalUsdc` | string | Vault cash in USDC (7-decimal integer) |
+| `circulatingShares` | string | Vault shares outstanding (7-decimal integer) |
+| `hwmNav` | string | High-water NAV per share, 7-decimal scaled (`"10000000"` is 1.0) |
+| `realizedPnl` | string | Leader profit-share payouts to date (USDC, 7-decimal) |
+| `leaderShares` | string | Shares held by the leader (7-decimal integer) |
+| `profitShareBps` | integer | Leader profit share in basis points (`1000` is 10%) |
+| `paused` | boolean | Whether the vault is paused |
+| `updatedAt` | integer | Last projection update, milliseconds since epoch |
+| `depositorCount` | integer | Distinct depositors |
+| `openPositions` | integer | Currently open leader positions |
+| `tradeCount` | integer | Lifetime leader trades (counts position opens) |
+| `drawdownBps` | integer | Current drawdown from the high-water mark: `(hwm - nav) / hwm * 10000`, floored at 0, where `nav` is `totalUsdc / circulatingShares` |
+| `apyBps` | integer | Signed yield in basis points from `closedTradePnl` over `totalUsdc`: annualized when the vault is at least seven days old, otherwise the raw since-inception return (see `apyKind`). A losing vault reports a negative value |
+| `apyKind` | string | `annualized`, or `inception` when the vault is younger than seven days and `apyBps` is not an annual rate |
+| `closedTradePnl` | string | Lifetime PnL from closed leader trades (USDC, 7-decimal, signed) |
+
+## `GET /v1/vaults/{id}`
+
+Returns a single vault by id, in the same enriched shape as a list row plus `navFull`.
+
+### Path parameters
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `id` | integer, 0 or more | yes | Vault id |
+
+### Example
+
+```bash
+curl -s "https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/vaults/0"
+```
+
+```json
+{
+  "id": 0,
+  "leader": "GCAAZWLEY65OHIDYXS6LVHVW7VHGFNFJ3UYBXSRLIRQMCD5NLCZTL3HZ",
+  "name": "bigbig",
+  "createdAt": 1787341737,
+  "totalUsdc": "11000000000",
+  "circulatingShares": "11000000000",
+  "hwmNav": "10000000",
+  "realizedPnl": "0",
+  "leaderShares": "1000000000",
+  "navFull": "11000000000",
+  "profitShareBps": 1000,
+  "paused": false,
+  "updatedAt": 1787779347156,
+  "depositorCount": 2,
+  "openPositions": 0,
+  "tradeCount": 0,
+  "drawdownBps": 0,
+  "apyBps": 0,
+  "apyKind": "annualized",
+  "closedTradePnl": "0"
+}
+```
+
+`navFull` is the vault's full net asset value read from the chain (cash plus the marked value of open positions and orders), a 7-decimal USDC string; it is `null` when the read is unavailable. Unknown ids return `404`:
+
+```json
+{"error":"vault_not_found","id":999}
+```
+
+## `GET /v1/vaults/{id}/trades`
+
+The vault leader's open and close trade history, newest first. Each row records a `leader_open` or `leader_close` event emitted by the vault factory contract.
+
+### Parameters
+
+| Parameter | In | Type | Required | Description |
+|---|---|---|---|---|
+| `id` | path | integer, 0 or more | yes | Vault id |
+| `limit` | query | integer, 1 to 200 | no | Rows to return. Default 50 |
+| `before_ts` | query | integer, 0 or more | no | Return rows strictly older than this unix-seconds timestamp (cursor pagination) |
+
+### Example
+
+```bash
+curl -s "https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/vaults/0/trades?limit=1"
+```
+
+The vault in the sample has no leader trades yet, so the live response is `{"trades": []}`. Each row, when present, has this shape (from the gateway's response schema):
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | integer | Row id |
+| `vaultId` | integer | Vault id |
+| `positionId` | string | Market-contract position id the leader traded |
+| `action` | string | `open` or `close` |
+| `leader` | string | Leader's address |
+| `collateral` | string | Collateral committed (USDC, 7-decimal) |
+| `pnl` | string or null | Realized PnL on close rows (USDC, 7-decimal, signed); `null` on `open` rows |
+| `ts` | integer | Trade time, unix seconds |
+| `ledger`, `txHash` | integer, string | On-chain reference for the event |
+
+## `GET /v1/vaults/{id}/deposits`, `/withdraws`, `/fee-claims`
+
+Three history feeds with identical parameters, newest first:
+
+- `GET /v1/vaults/{id}/deposits`: depositor inflows. Response key `deposits`.
+- `GET /v1/vaults/{id}/withdraws`: depositor outflows. Response key `withdraws`.
+- `GET /v1/vaults/{id}/fee-claims`: leader profit-share claims. Response key `feeClaims`.
+
+### Parameters
+
+| Parameter | In | Type | Required | Description |
+|---|---|---|---|---|
+| `id` | path | integer, 0 or more | yes | Vault id |
+| `limit` | query | integer, 1 to 200 | no | Rows to return. Default 50 |
+| `before_ts` | query | integer, 0 or more | no | Return rows strictly older than this unix-seconds timestamp |
+
+### Example
+
+```bash
+curl -s "https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/vaults/0/deposits?limit=1"
+```
+
+```json
+{
+  "deposits": [
+    {
+      "id": 41,
+      "vaultId": 0,
+      "principal": "GANULBMBIHLAUTNLHKJXQHV7OLEAWRRSDEZOPLSXRGBJXCCF7V2OGQ7J",
+      "amount": "10000000000",
+      "ledger": 4351178,
+      "ts": 1787779333,
+      "txHash": "73bb4fec1ea56c01f3cd7b0e3b9b054e51d08c8e4bede358235ff66ffbd79774",
+      "shares": "10000000000"
+    }
+  ]
+}
+```
+
+All three feeds share this row shape:
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | integer | Row id |
+| `vaultId` | integer | Vault id |
+| `principal` | string | The depositor's address (deposits, withdraws) or the leader's address (fee claims) |
+| `amount` | string | USDC amount (7-decimal integer). On withdraws this is the USDC paid out |
+| `shares` | string | Vault shares minted or burned (7-decimal integer). Present on deposits and withdraws only; absent on fee claims |
+| `ts` | integer | Event time, unix seconds |
+| `ledger`, `txHash` | integer, string | On-chain reference for the event |
+
+## Notes
+
+- **Vaults trade as contract addresses.** A Trader Vault holds positions under its own `C...` contract address, so vault activity also appears in [`GET /v1/positions/open`](/developers/rest-api/positions) and on the leaderboard with a contract address in the `trader` field.
+- **Rate limits.** Without an API key you share the public tier of 60 requests per minute per IP. See the [REST overview](/developers/rest-api) for tiers and headers.
+- **Pagination.** `before_ts` is a strict less-than cursor in unix seconds: take the `ts` of the oldest row you have and pass it as `before_ts` to fetch the next page. There are no page tokens or total counts.
+
+## Next steps
+
+- [Positions](/developers/rest-api/positions): open positions, including vault-held ones
+- [Orders and transactions](/developers/rest-api/trading): the prepare, sign, submit flow
+- [Trader Vaults guide](/guides/trader-vaults): creating and depositing into vaults from the app

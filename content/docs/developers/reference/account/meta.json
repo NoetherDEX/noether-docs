@@ -1,0 +1,11 @@
+{
+  "title": "Account",
+  "pages": [
+    "get-account-me",
+    "get-account-me-events",
+    "get-account-me-positions",
+    "get-account-me-orders",
+    "get-account-volume",
+    "get-account-shortfall"
+  ]
+}

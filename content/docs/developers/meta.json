@@ -1,0 +1,18 @@
+{
+  "title": "Developers",
+  "description": "REST and WebSocket API, SDKs, errors",
+  "root": true,
+  "pages": [
+    "index",
+    "authentication",
+    "rest-api",
+    "reference",
+    "websocket",
+    "sdk-ts",
+    "sdk-py",
+    "errors",
+    "---Packages---",
+    "external:[noether-sdk on npm](https://www.npmjs.com/package/noether-sdk)",
+    "external:[noether-sdk on PyPI](https://pypi.org/project/noether-sdk/)"
+  ]
+}

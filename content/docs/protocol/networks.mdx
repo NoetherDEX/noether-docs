@@ -1,0 +1,78 @@
+---
+title: "Networks"
+description: "Testnet endpoints and passphrase, how the faucet hands out test USDC, what a testnet reset does to addresses, and where mainnet stands."
+---
+
+Noether currently runs on the Stellar testnet. This page lists the network configuration you need to connect a wallet, an SDK or your own tooling, how the faucet works, and what is planned for mainnet.
+
+## Testnet (live)
+
+Everything Noether serves today, the app, the API gateway and every smart contract, runs on the Stellar testnet with test funds.
+
+### Network configuration
+
+| Setting | Value |
+|---|---|
+| Network | `testnet` |
+| Network passphrase | `Test SDF Network ; September 2015` |
+| Soroban RPC | `https://soroban-testnet.stellar.org` |
+| Horizon | `https://horizon-testnet.stellar.org` |
+| Friendbot (fund a new account with test XLM) | `https://friendbot.stellar.org?addr=YOUR_PUBLIC_KEY` |
+
+The public Soroban RPC endpoint is shared and rate-limited. It is fine for a wallet or occasional reads; if you run high-frequency tooling (a bot polling positions, your own indexer), use a dedicated RPC provider.
+
+### Noether endpoints
+
+| Service | URL |
+|---|---|
+| Trading app | [https://testnet.noether.exchange](https://testnet.noether.exchange), trade page at [/trade](https://testnet.noether.exchange/trade) |
+| API gateway (REST) | `https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io`, endpoints under `/v1/*` |
+| API gateway (WebSocket) | `wss://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/ws` |
+| OpenAPI reference | [https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/docs](https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/docs) |
+| Noeracle price API | `https://api.noeracle.org`, signed attestations at `/v1/latest`, SSE stream at `/v1/stream` |
+
+Contract addresses for the live deployment are generated on [Contracts and events](/protocol/contracts); the gateway's `GET /v1/health` returns the same addresses live.
+
+### Test assets
+
+- **USDC**: the test settlement asset, issued for Noether. All collateral, fees and PnL are denominated in it. On-chain it uses 7-decimal fixed point (raw `10_000_000` = 1 USDC). It has no real-world value and cannot be bridged to real USDC.
+- **NOE**: the liquidity vault's share token, a classic Stellar asset (code `NOE`) wrapped as a Stellar Asset Contract. Issuer and contract address are on [Contracts and events](/protocol/contracts).
+
+### Faucet
+
+The in-app faucet at [testnet.noether.exchange/faucet](https://testnet.noether.exchange/faucet) gets a wallet ready to trade:
+
+1. If your account does not exist on testnet yet, the faucet page funds it with test XLM through Friendbot.
+2. It adds a USDC trustline to your account (a transaction you sign in your wallet).
+3. You claim 100, 500 or 1,000 test USDC per claim, up to 1,000 USDC per wallet per UTC day. The limit is computed from your claim history on-chain, and the claim is a payment from the USDC issuer, so it appears in your account's payment history like any other transfer.
+
+See [Getting started](/guides/getting-started) for the full first-trade walkthrough.
+
+### Testnet resets
+
+<Callout type="warning" title="Testnet resets wipe everything">
+  Stellar resets the testnet periodically. A reset wipes all on-chain state: accounts, balances, positions and every deployed contract. After a reset, Noether redeploys its contracts and all contract addresses change. Any address you have pinned in your own code or config must be updated; re-check the [contracts page](/protocol/contracts) or the gateway's `/v1/health` endpoint, which echoes the addresses the live deployment is actually serving.
+</Callout>
+
+Because funds are test money, a reset costs you nothing except reconfiguration. Treat any hardcoded testnet address as temporary.
+
+## Mainnet (planned)
+
+Noether is not deployed to Stellar mainnet. No contracts exist there and no launch date is committed. What the mainnet release is planned to include, every item planned and not live:
+
+- **Higher leverage caps.** The deployed risk ladder requires an initial margin of at least 4%, so the contract can never offer more than 25x on any market; the testnet ladder caps every pair at 10x. Mainnet caps will be set per market at launch.
+- **A second independent oracle source** alongside Noeracle. See [Oracle and price feeds](/protocol/oracle).
+- **Higher fee-tier volume thresholds.** The testnet thresholds ($20,000, $50,000 and $100,000 of 14-day volume) are lowered for testing; the market code records $1M, $5M and $25M as the intended mainnet tiers, to be set at initialization. See [Trading mechanics](/protocol/trading-mechanics).
+- **An external audit before launch.** See [Security and audits](/protocol/security).
+
+For reference, the Stellar mainnet network passphrase is `Public Global Stellar Network ; September 2015` and its Horizon endpoint is `https://horizon.stellar.org`. These describe Stellar itself; Noether has nothing deployed on them yet.
+
+<Callout type="info">
+  If you are building an integration today, target the testnet configuration above. Network parameters and contract addresses are configuration in the SDKs and the gateway, so an integration built against testnet carries over to mainnet by swapping those values.
+</Callout>
+
+## Next steps
+
+- [Contracts and events](/protocol/contracts): the live testnet deployment
+- [Architecture](/protocol/architecture): how the contracts, oracle and off-chain services fit together
+- [Developer overview](/developers): REST, WebSocket and SDK docs for the gateway

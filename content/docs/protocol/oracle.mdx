@@ -1,0 +1,164 @@
+---
+title: "Oracle and price feeds"
+description: "How Noeracle attestations reach the chain, how the market reads them through the SEP-40 shim, and the checks that gate a trade."
+---
+
+Every trade on Noether settles against an oracle price. This page explains where that price comes from, how it gets on-chain, and the guard rails that decide when the market will and will not accept it. It is written for traders who want to understand the mechanics and for integrators building against the contracts or the gateway.
+
+## The pull-oracle model
+
+Noether reads prices from Noeracle, a pull oracle built on Stellar. The model has two halves:
+
+1. **Off-chain publishing.** A publisher computes a median price per feed from 5 exchange sources and signs a round about twice a second. Each round covers the tuple (feed tag, price, timestamp, round ID), signed with an ed25519 key.
+2. **On-chain relaying.** Anyone may relay a signed round to the Noeracle contract. The deployed build stores the median of the submitted publisher rounds as a persistent price entry keyed by an 8-byte feed tag (`BTC` maps to the ASCII tag `BTCUSD`, zero-padded to 8 bytes). The quorum, the minimum number of distinct registered publishers a relayed round must carry, is 1 today.
+
+A live attestation from the Noeracle API looks like this (excerpt):
+
+```json
+{
+  "asset": "BTC/USD",
+  "tag": "BTCUSD",
+  "price": "762669288889",
+  "price_human": 76266.92888888888,
+  "timestamp": 1789683620,
+  "round_id": 3579367241,
+  "sources": 5,
+  "publisher": "8f8650ca5cb1bc7491b68e02f4d89e54da1f1996e161897b0eabadc28534e17a",
+  "signature": "8e82f857..."
+}
+```
+
+Prices are 7-decimal fixed point throughout the stack: the raw string `762669288889` above is $76,266.9288889. One publisher key is live today; its attestations are served over HTTPS at `https://api.noeracle.org` (`/v1/latest` for the newest signed round per feed, `/v1/stream` for a server-sent-events feed).
+
+## How a price reaches the market
+
+The market contract never talks to Noeracle directly. It reads through the Noeracle shim, a small SEP-40 style reader contract that maps each symbol to Noeracle's 8-byte feed tag (BTC to `BTCUSD`) and returns the stored round from `get_price_pers`:
+
+<Diagram name="price-path" caption="Two writers, one reader: the keeper keeps prices fresh on a heartbeat, and every trade carries its own fresh round through the router." />
+
+Three properties matter here:
+
+- **The shim fails loudly.** If Noeracle has no persistent entry for a feed, the shim panics with `#32 OracleUnavailable` instead of returning a placeholder, and an unknown symbol panics with `#31 InvalidPrice`. Trading in that asset halts visibly rather than executing against nothing.
+- **7 decimals everywhere.** The shim's `decimals()` returns 7, matching the market's own fixed-point convention, so no conversion happens in between. If the backend is ever swapped to a SEP-40 oracle with different decimals, the shim rescales on every read.
+- **A smoothed view exists too.** `twap(asset, records)` returns the mean of the newest `records` entries in Noeracle's price ring together with the newest entry's timestamp. The market uses it only to confirm liquidations and protective triggers, never to settle a trade.
+
+The current addresses (shim, router, Noeracle, market) are on [Contracts and events](/protocol/contracts).
+
+## Who writes prices on-chain
+
+Two writers land prices in the same Noeracle entries.
+
+### The keeper heartbeat
+
+Every 30 seconds by default, the keeper bot fetches the latest signed round for every listed pair from the Noeracle API and relays it through Noeracle's batch entry point. This keeps prices flowing even when nobody is trading, but a quiet feed's on-chain price can still be older than the market's 60-second staleness window between pushes. The guarantee of a fresh price at trade time comes from the router path below, not from the heartbeat.
+
+Before each push, the keeper runs its own defenses:
+
+- rejects non-finite or non-positive prices,
+- checks the price against a per-pair absolute sanity band (the same bands the router enforces),
+- bounds the jump versus its own last pushed price (10% per push for BTC and ETH, 20% for the other pairs),
+- cross-checks against an independent reference price and skips the push if the two diverge by more than 5%.
+
+The keeper has no fallback price source: if the Noeracle API is unreachable, it skips the cycle rather than publishing from anywhere else.
+
+### The Noether Router: verify-then-trade
+
+Keeper pushes alone cannot guarantee that your trade sees a fresh price, and a Stellar transaction carries a single host-function invocation, so a client cannot simply prepend an oracle update to its trade. The Noether Router does both inside one contract call:
+
+1. The app fetches one fresh signed round from the Noeracle API.
+2. It calls a router entry point, passing the trade arguments plus the attestation (asset, publisher keys, prices, signatures, timestamp, round ID).
+3. The router verifies and relays the attestation to Noeracle, then invokes the market, in the same transaction.
+
+The market therefore reads a price that is at most a few seconds old at execution time, and a trade routed this way cannot fail the 60-second staleness check (error `#30 PriceStale`).
+
+| Router entry point | Wraps |
+|---|---|
+| `open_with_price` | `open_position` |
+| `close_with_price` | `close_position` |
+| `close_partial_with_price` | `close_position_partial` |
+| `liquidate_with_price` | `liquidate` |
+| `execute_with_price` | `execute_order` |
+| `adl_with_price` | `adl_close` |
+| `liquidate_cross_with_prices` | `liquidate_cross_account`, taking one attestation per asset the account holds, since cross-margin equity reads all of them |
+
+Before relaying, the router enforces its own checks:
+
+- **Bundle shape.** The publisher keys, prices and signatures must line up one to one; a malformed bundle is rejected with `#5 InvalidParameter`.
+- **Publisher allowlist.** Every supplied public key must be registered with the router; an unknown key is rejected with `#3 Unauthorized`.
+- **Per-asset sanity bands.** Any submitted price outside the asset's coarse plausibility band is rejected with `#31 InvalidPrice`, whatever its signature.
+
+The round then goes to Noeracle's quorum entry point, which re-checks the signature, publisher registration, staleness, the quorum count and per-publisher round monotonicity; any failure reverts the whole transaction, so a bad round never produces a trade. The trader signs the whole call tree as the transaction source; the router holds and moves no funds of its own.
+
+<Callout type="info">
+  The keeper uses the same router entry points for liquidations and order executions, so those also settle on a price relayed in the same transaction. The heartbeat is what keeps prices fresh between trades.
+</Callout>
+
+## Safety rails
+
+All values below are the deployed production configuration.
+
+| Guard | Where | Value | On violation |
+|---|---|---|---|
+| Maximum price staleness | market | 60 seconds | Risk-increasing paths reject with `#30 PriceStale` |
+| Deviation band | market | 1% (100 bps) versus the stored last-good price, applied while that price is younger than 600 seconds | Risk-increasing paths reject with `#81 PriceDeviationTooHigh` |
+| Settlement clamp | market | 3% (300 bps) versus the last-good price, same 600-second window | Lenient reads are clamped into the band, never rejected |
+| Smoothed mark | market, via the shim's `twap` | mean of the newest 4 ring entries, ignored when the newest is older than 300 seconds | A non-bankrupt liquidation must also breach on the smoothed mark, else `#86 LiquidationNotConfirmed`; protective stops trigger on it |
+| Sanity bands | router | coarse USD bounds per pair | `#31 InvalidPrice`, even with valid signatures |
+| Publisher allowlist | router | registered keys only | `#3 Unauthorized` |
+| Missing feed data | shim | — | `#32 OracleUnavailable`, a loud halt, never a silent stale price |
+| Asset halt | market | admin flag per asset | Risk-increasing operations on that asset reject with `#92 AssetHalted` |
+
+### Halt opens, allow closes
+
+The market applies its staleness and deviation checks in strict mode only on risk-increasing paths: opening positions (isolated and cross), Post-Only and IOC placement pre-checks, executing limit and stop-limit entries that are not reduce-only, removing collateral from a position, and trailing-stop peak updates. The cross-margin open and withdrawal gates additionally require a fresh price for every asset in the account, rejecting a stale leg with `#30` and a dead one with `#31`, but skip the deviation band.
+
+Risk-reducing paths, which are closes, partial closes, liquidations, stop-loss, take-profit, trailing-stop and reduce-only executions, and ADL closes, are never blocked by staleness or the deviation band. If the oracle degrades you can always get out of a position; you just cannot add new risk.
+
+The 1% deviation band compares each strict read against the last price the market accepted. Two details keep it from misfiring: every fresh read updates the stored last-good price, so the band tracks the market in real time, and the band is skipped when the last-good price is older than 600 seconds, so a large but legitimate move during a quiet period cannot leave the market permanently rejecting the new price level. On the lenient path the same last-good price bounds settlement instead: a print more than 3% away from a recent last-good price is clamped to the edge of that band, so one deviant round can misprice a close or liquidation by at most 3%.
+
+### Per-pair sanity bands
+
+The router rejects any attestation outside a coarse USD plausibility band for the pair. The bands are compiled into the router source (`contracts/noether_router/src/lib.rs` in the [repository](https://github.com/NoetherDEX/noether)), and the admin can override a pair's band on-chain; `get_price_band(asset)` returns the override, or nothing when the compiled band applies. The keeper applies the same bands before publishing. They are plausibility bounds, not trading limits: they exist to stop a garbage price from ever being relayed, independent of signature validity.
+
+## Price display in the app
+
+The chart and ticker prices you see at [testnet.noether.exchange/trade](https://testnet.noether.exchange/trade) come from a different, faster path than the one trades settle on:
+
+- **Primary: live stream.** The app subscribes to the Noeracle server-sent-events endpoint (`https://api.noeracle.org/v1/stream`), which delivers about two price frames per second.
+- **Fallback: on-chain reads.** If no frame arrives for 10 seconds, the app marks the feed stale and polls the on-chain shim's `lastprice` every 5 seconds (a read-only simulation, no transaction). It resumes the stream automatically when frames return.
+- **No fabricated values.** When a price read fails outright, the app renders a dash or a stale badge, never zero.
+
+Display prices are cosmetic. Transactions always carry a signed attestation through the router, so a display glitch cannot change what your trade executes at.
+
+The REST gateway mirrors this: `GET /v1/markets` and the oracle endpoints read the shim through a 3-second cache, and the WebSocket `ticker.<ASSET>` channel ticks from the same source every 3 seconds. See [Oracle endpoints](/developers/rest-api/oracle) and [WebSocket](/developers/websocket).
+
+## Trust model today and what mainnet adds
+
+Today's deployment runs on the Stellar testnet with test funds, and its oracle trust model reflects that:
+
+- One publisher key is live, aggregating 5 sources per feed, and the Noeracle quorum is 1. The router's publisher allowlist and sanity bands, the keeper's publish defenses, and the market's staleness, deviation and clamp checks are layered around it.
+- Oracle write-path issues are in scope of the [security policy](/protocol/security) and gate mainnet.
+
+Planned for mainnet, not live today: a second independent price source.
+
+## Error codes at a glance
+
+| Code | Name | Raised by | Meaning |
+|---|---|---|---|
+| `#3` | `Unauthorized` | router | Attestation publisher key not on the allowlist |
+| `#5` | `InvalidParameter` | router | Malformed attestation bundle (keys, prices and signatures do not line up) |
+| `#30` | `PriceStale` | market | Price older than 60 seconds on a risk-increasing path |
+| `#31` | `InvalidPrice` | market, shim, router | Price at most 0, unknown asset symbol, or attestation outside the sanity band |
+| `#32` | `OracleUnavailable` | shim | Noeracle has no persistent entry for the feed |
+| `#81` | `PriceDeviationTooHigh` | market | Strict-path price moved more than 1% versus a last-good price younger than 600 seconds |
+| `#86` | `LiquidationNotConfirmed` | market | Liquidation breaches on spot but not on the smoothed mark |
+| `#92` | `AssetHalted` | market | The admin halted risk-increasing operations on this asset |
+
+Full list on [Errors](/developers/errors).
+
+## Next steps
+
+- [Architecture](/protocol/architecture): how the oracle chain fits into the full system
+- [Trading mechanics](/protocol/trading-mechanics): what happens after the price check passes
+- [Contracts and events](/protocol/contracts): deployed addresses for the shim, router and Noeracle
+- [Oracle endpoints](/developers/rest-api/oracle): read prices over HTTP

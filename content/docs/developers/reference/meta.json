@@ -1,0 +1,15 @@
+{
+  "title": "Endpoint reference",
+  "pages": [
+    "markets",
+    "oracle",
+    "trading",
+    "positions",
+    "account",
+    "vaults",
+    "referral",
+    "leaderboard",
+    "keys",
+    "system"
+  ]
+}

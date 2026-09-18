@@ -1,0 +1,9 @@
+{
+  "title": "Oracle and prices",
+  "pages": [
+    "get-oracle-prices",
+    "get-markets-by-asset-price",
+    "post-oracle-heartbeat",
+    "get-oracle-health"
+  ]
+}

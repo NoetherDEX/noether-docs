@@ -1,0 +1,338 @@
+---
+title: "Markets and market data"
+description: "The market list, per-asset detail, open interest and capacity stats, recent trades, OHLC candles and the leaderboard, all without a key."
+---
+
+Public market-data endpoints of the Noether gateway: the market list, per-asset detail, open interest, volume and pool capacity, recent trades, OHLC candles, and the trader leaderboard. Every endpoint on this page is public; no API key is required.
+
+Base URL:
+
+```text
+https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io
+```
+
+All paths are under `/v1`. Unauthenticated requests share the public rate limit of 60 requests per minute per IP; sending a valid API key (with `X-Timestamp`) raises that to your wallet's tier (see [Authentication](/developers/authentication)). Prices and money amounts are strings of 7-decimal fixed-point integers: `"763827177778"` is $76,382.7177778 and `"100000000"` is 10 USDC. Where a `priceFloat` field exists it is the same value pre-converted to a float. Timestamps in these payloads are unix seconds unless marked otherwise.
+
+## `GET /v1/markets`
+
+Lists all supported markets with their current oracle price. This is a live chain read through the Noeracle shim contract, cached for 3 seconds per asset.
+
+**Auth:** public. **Params:** none.
+
+```bash
+curl -s https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/markets
+```
+
+```json
+{
+  "markets": [
+    {
+      "asset": { "symbol": "BTC", "name": "Bitcoin", "decimals": 8 },
+      "oracle": { "asset": "BTC", "price": "763827177778", "priceFloat": 76382.7177778, "timestamp": 1789683237 }
+    },
+    {
+      "asset": { "symbol": "ETH", "name": "Ethereum", "decimals": 8 },
+      "oracle": { "asset": "ETH", "price": "24448744444", "priceFloat": 2444.8744444, "timestamp": 1789683237 }
+    }
+  ]
+}
+```
+
+The response contains one entry per supported market. The list served today:
+
+<MarketsTable />
+
+`asset.decimals` is display metadata for the underlying asset; API prices are 7-decimal fixed point regardless of that field. Treat this endpoint as the source of truth for symbols: the trading app can list a subset of what the gateway serves.
+
+## `GET /v1/markets/{asset}`
+
+Returns a single market with its current oracle price. Same data as one entry of `/v1/markets`.
+
+**Auth:** public.
+
+| Param | In | Type | Required | Notes |
+|---|---|---|---|---|
+| `asset` | path | string | yes | Symbol, for example `BTC`. Case-insensitive (uppercased server-side) |
+
+```bash
+curl -s https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/markets/BTC
+```
+
+```json
+{
+  "asset": { "symbol": "BTC", "name": "Bitcoin", "decimals": 8 },
+  "oracle": { "asset": "BTC", "price": "763827177778", "priceFloat": 76382.7177778, "timestamp": 1789683237 }
+}
+```
+
+Unknown assets return `404`:
+
+```json
+{ "error": "Unknown asset", "asset": "FOO" }
+```
+
+For the price alone, use `GET /v1/markets/{asset}/price`, documented on the [Oracle and prices](/developers/rest-api/oracle) page.
+
+## `GET /v1/markets/stats`
+
+Per-asset open interest, trailing 24-hour volume and pool-capacity headroom, plus vault-wide capacity, the keeper's custody self-report and the protocol solvency summary. The open-interest rows come from the indexer's event projections and are cached for 5 seconds; the `capacity` and `pool` blocks are chain reads served with a short cache and marked `stale: true` when the last refresh failed. There is always a row for every supported asset (zeros when there is no data).
+
+**Auth:** public. **Params:** none.
+
+```bash
+curl -s https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/markets/stats
+```
+
+```json
+{
+  "stats": [
+    {
+      "asset": "BTC",
+      "openInterestLong": "2274212622064",
+      "openInterestShort": "2472200000000",
+      "openInterestNet": "-197987377936",
+      "openPositions": 22,
+      "volume24h": "2289900000000",
+      "capacity": {
+        "headroomLong": "1000000000000",
+        "headroomShort": "1000000000000",
+        "bindingLong": "maxPosition",
+        "bindingShort": "maxPosition",
+        "oiLong": "2274212622064",
+        "oiShort": "2472200000000",
+        "netSkew": "-197987377936",
+        "sideCap": "10700994761106",
+        "skewCap": "6420596856663",
+        "assetCapBps": 2500,
+        "capAbs": "0",
+        "skewCapBps": 1500,
+        "maxPositionSize": "1000000000000"
+      }
+    }
+  ],
+  "solvency": {
+    "cumulativeBadDebtCovered": "120425958528",
+    "cumulativeBadDebtLpAbsorbed": "22550969461403",
+    "badDebtEvents": 101
+  },
+  "pool": {
+    "aum": "42803979044426",
+    "reservedPayout": "7911176874967",
+    "usdcBalance": "42897842325278",
+    "shortfallReserve": "0",
+    "reserveCapBps": 7000,
+    "reserveCap": "29962785331098",
+    "aggregateHeadroom": "22051608456131",
+    "aggregateBinding": "aggregate",
+    "asOfLedger": 4731942,
+    "ts": 1789683298151,
+    "stale": false
+  },
+  "custody": {
+    "marketUsdcBalance": "2146662732463",
+    "trackedCustody": "1887344642798",
+    "isolatedCollateral": "1612091332313",
+    "crossBalances": "222235810485",
+    "orderEscrow": "620000000",
+    "deficit": "0",
+    "positions": 47,
+    "asOf": 1789683203158,
+    "ageMs": 108875,
+    "stale": false,
+    "crossPositionCollateral": "52397500000"
+  }
+}
+```
+
+The `stats` array above is trimmed to one row; the live response has one row per market.
+
+| Field | Meaning |
+|---|---|
+| `openInterestLong`, `openInterestShort` | Open notional per side, 7-decimal USDC string (the row above is $227,421 long and $247,220 short) |
+| `openInterestNet` | Long minus short (negative when shorts dominate) |
+| `openPositions` | Count of open positions in this market |
+| `volume24h` | Trailing 24-hour notional: opened sizes plus realized close and liquidation notional, 7-decimal USDC string |
+| `capacity.headroomLong`, `capacity.headroomShort` | Largest notional the vault accepts for a new long or short right now. Advisory: the contract stays the authority |
+| `capacity.bindingLong`, `capacity.bindingShort` | Which gate binds first if the order grew: `aggregate`, `side`, `skew`, `liquidity` or `maxPosition` |
+| `capacity.oiLong`, `capacity.oiShort`, `capacity.netSkew` | The chain's own per-asset exposure figures (the `openInterest*` fields come from the indexer) |
+| `capacity.sideCap`, `capacity.skewCap`, `capacity.assetCapBps`, `capacity.capAbs`, `capacity.skewCapBps`, `capacity.maxPositionSize` | The cap inputs: per-side cap and net-skew cap in notional, the basis-point settings behind them, an absolute cap override (`"0"` when unset) and the market's maximum position size |
+| `pool` | Vault-wide capacity: AUM, reserved payouts, USDC balance, the aggregate reservation cap and the headroom left for new positions on any market; `stale: true` when served from the last good snapshot |
+| `custody` | The keeper's last market-custody self-report: the USDC the market holds versus the collateral it tracks for traders; `deficit` must be `"0"`, `stale: true` when the report is older than five minutes. Absent until the keeper has reported |
+| `solvency` | Market-scoped lifetime bad debt: how much the insurance buffer absorbed versus how much fell through to LP NAV |
+
+`capacity` on a row and `pool` on the response are omitted, never zeroed, when the gateway could not read the chain.
+
+## `GET /v1/trades`
+
+Recent trades, newest first, backed by the indexer. Realized rows (closes, liquidations, auto-deleveraging fills) carry `asset`, `direction`, `size` and `entryPrice` joined from the matching open event; those fields are `null` when the open predates indexer history.
+
+**Auth:** public.
+
+| Param | In | Type | Required | Notes |
+|---|---|---|---|---|
+| `trader` | query | string | no | Stellar address, 56 characters |
+| `asset` | query | string | no | Symbol, 1 to 12 characters, uppercased |
+| `before_ts` | query | integer | no | Unix seconds; returns rows strictly older |
+| `limit` | query | integer | no | 1 to 200, default 50 |
+| `include_opens` | query | boolean | no | Also return `position_opened` rows as `kind: "open"` |
+
+```bash
+curl -s "https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/trades?limit=2"
+```
+
+```json
+{
+  "trades": [
+    {
+      "positionId": 22474,
+      "trader": "GACOJCQWGRBW7AN4ON7WD54D7UQFWFHBCCOLFCVZHELKGYB34YNFP2YU",
+      "kind": "close",
+      "ledger": 4717025,
+      "ts": 1789608712,
+      "txHash": "fd51a69d44518bdfee71030ac9f4709919b0f8f8b96ce256f69438d4218b80fd",
+      "asset": "BTC",
+      "direction": 0,
+      "size": "1000000000000",
+      "entryPrice": "760226744444",
+      "closePrice": "766007811111",
+      "pnl": "7604397910"
+    },
+    {
+      "positionId": 22473,
+      "trader": "GACOJCQWGRBW7AN4ON7WD54D7UQFWFHBCCOLFCVZHELKGYB34YNFP2YU",
+      "kind": "close",
+      "ledger": 4717021,
+      "ts": 1789608692,
+      "txHash": "cc0904e481fda289c476a861cc5c4bb0a4629f02325b363a827dba5a270598c1",
+      "asset": "ETH",
+      "direction": 0,
+      "size": "739700000000",
+      "entryPrice": "24092900000",
+      "closePrice": "24382133333",
+      "pnl": "8880039199"
+    }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `kind` | `close`, `liquidation`, `cross_liquidation`, `adl`, or `open` when `include_opens=true` |
+| `direction` | Integer: `0` long, `1` short |
+| `size`, `entryPrice`, `closePrice` | 7-decimal fixed-point strings; `closePrice` is `null` on `open` rows |
+| `pnl` | Realized PnL; populated on closes and ADL fills, `null` on liquidations and opens |
+
+Cross-margin account liquidations appear as `kind: "cross_liquidation"` with `null` position fields (the chain emits one account-level event; `pnl` is the account total); they are omitted when you filter by `asset`. Pagination is cursor-style: take the oldest `ts` you received and pass it as `before_ts` for the next page.
+
+## `GET /v1/candles`
+
+OHLC candles for charting, oldest first.
+
+**Auth:** public.
+
+| Param | In | Type | Required | Notes |
+|---|---|---|---|---|
+| `asset` | query | string | yes | Symbol, 1 to 12 characters, uppercased |
+| `interval` | query | string | no | One of `1m`, `5m`, `15m`, `1h`, `4h`, `1d`, `1w`; default `1h` |
+| `limit` | query | integer | no | 1 to 1000, default 500 |
+
+```bash
+curl -s "https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/candles?asset=BTC&interval=1h&limit=2"
+```
+
+```json
+{
+  "candles": [
+    { "time": 1789675200, "open": 76595.5811111, "high": 76722.3022222, "low": 76506.01, "close": 76554.74 },
+    { "time": 1789678800, "open": 76554.7622222, "high": 76611.0644444, "low": 76415.0622222, "close": 76416.1288889 }
+  ],
+  "source": "noeracle"
+}
+```
+
+`time` is the bucket start in unix seconds. OHLC values are plain floats (not fixed-point strings), and there is no volume field. An invalid `interval` returns a `400` validation error (see [Errors](/developers/errors)).
+
+### Where candle data comes from
+
+Every response carries a `source` field that tells you what you are looking at:
+
+- `noeracle`: Noether's native candles. The indexer aggregates Noeracle oracle price ticks (the venue's own mark price) into OHLC buckets. These are price candles, not trade prints: a quiet market still produces candles, and they carry no traded volume.
+- `binance`: automatic fallback to Binance klines for the equivalent USDT pair, used only when the native query returns zero rows for that asset and interval (for example on a fresh deployment before native history accumulates).
+
+Two consequences worth coding against:
+
+- Unknown assets are not rejected. `?asset=FOO` returns `200` with `{"candles": [], "source": "binance"}`, an empty array rather than a `404`. Validate symbols against `/v1/markets` yourself if you need strictness.
+- Treat `source: "binance"` candles as reference prices from an external exchange, not Noether trading data. Native `noeracle` candles reflect the same oracle price your positions are marked and liquidated against.
+
+## `GET /v1/leaderboard`
+
+Trader rankings by lifetime realized PnL or lifetime traded notional, computed from the indexer projections and cached for 20 seconds. Pages slice an immutable snapshot so ranks stay stable while you page.
+
+**Auth:** public.
+
+| Param | In | Type | Required | Notes |
+|---|---|---|---|---|
+| `scope` | query | string | no | `testnet` (default) or `mainnet`; `mainnet` returns `state: "not_indexed_here"` with zero rows today |
+| `sort` | query | string | no | `pnl` (default) or `volume`; ties break on the other metric, then trader, so ranks are unique |
+| `limit` | query | integer | no | 1 to 200, default 20 |
+| `offset` | query | integer | no | Row offset into the snapshot, default 0 |
+| `snapshot` | query | string | no | The `snapshot` id from a previous page, to keep paging the same computation |
+
+```bash
+curl -s "https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/leaderboard?limit=2"
+```
+
+```json
+{
+  "sort": "pnl",
+  "scope": "testnet",
+  "network": "testnet",
+  "state": "ok",
+  "updatedAt": 1789683259,
+  "total": 665,
+  "limit": 2,
+  "offset": 0,
+  "snapshot": "testnet.pnl.4731934.665",
+  "snapshotChanged": false,
+  "leaders": [
+    { "rank": 1, "trader": "GACOJCQWGRBW7AN4ON7WD54D7UQFWFHBCCOLFCVZHELKGYB34YNFP2YU", "pnl": "501097093736", "volume": "117346980000000", "trades": 125, "liqCount": 0 },
+    { "rank": 2, "trader": "GCAAZWLEY65OHIDYXS6LVHVW7VHGFNFJ3UYBXSRLIRQMCD5NLCZTL3HZ", "pnl": "315660934817", "volume": "20575150000000", "trades": 87, "liqCount": 0 }
+  ]
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `state` | `ok`, `empty`, or `not_indexed_here` (a scope this gateway does not index) |
+| `updatedAt` | When the index last advanced, unix seconds |
+| `total` | Number of ranked traders in the snapshot |
+| `snapshot`, `snapshotChanged` | The snapshot id to pass with the next `offset`; `snapshotChanged` is `true` when the board recomputed underneath a paging walk |
+| `leaders[].pnl` | Lifetime realized PnL, 7-decimal USDC string (the top row is about $50,109.71) |
+| `leaders[].volume` | Lifetime traded notional, 7-decimal USDC string (the top row is about $11.73M) |
+| `leaders[].trades`, `leaders[].liqCount` | Trade count and liquidation count |
+
+Note that `trader` can be a contract address (starting with `C`): Trader Vaults trade as contracts, so vaults appear on the leaderboard alongside wallets. See [Trader Vaults](/guides/trader-vaults).
+
+Two companions share the same snapshot:
+
+- `GET /v1/leaderboard/rank?trader=G...` returns one trader's `rank` (or `null` when not on the board) and their row as `entry`, with the same `scope` and `sort` params.
+- `GET /v1/leaderboard/totals` returns venue-wide `traders`, `volume` and `trades` aggregated over every trader, which summing pages would undercount once the board exceeds the page limit.
+
+```bash
+curl -s https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/leaderboard/totals
+```
+
+```json
+{ "scope": "testnet", "network": "testnet", "state": "ok", "updatedAt": 1789683524, "traders": 665, "volume": "4121683967409270", "trades": 23525 }
+```
+
+## Data freshness
+
+`/v1/markets` and `/v1/markets/{asset}` are live chain reads with a 3-second cache. `/v1/markets/stats` rows, `/v1/trades` and `/v1/leaderboard` are served from the indexer's event projections, and `/v1/candles` from its candle aggregator; these can lag the chain. Check `GET /v1/health` and its `indexer.ledgerAgeSeconds` field to see how far behind the projections are (see [Keys, events and health](/developers/rest-api/system)).
+
+## Next steps
+
+- [Oracle and prices](/developers/rest-api/oracle): single-asset price reads, the full price list and oracle health
+- [Orders and transactions](/developers/rest-api/trading): prepare, sign and submit orders
+- [WebSocket API](/developers/websocket): live tickers and trade streams instead of polling
+- [Generated reference](/developers/reference): try these endpoints in the browser

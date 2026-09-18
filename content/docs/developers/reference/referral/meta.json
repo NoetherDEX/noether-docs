@@ -1,0 +1,10 @@
+{
+  "title": "Referral",
+  "pages": [
+    "get-referral-lookup",
+    "get-referral-info",
+    "get-referral-me",
+    "get-referral-me-trades",
+    "get-referral-me-claims"
+  ]
+}

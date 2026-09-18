@@ -1,0 +1,301 @@
+---
+title: "Trading mechanics"
+description: "Precision, the margin ladder, per-market funding, liquidation, fee tiers and pool capacity limits as the deployed market and vault compute them."
+---
+
+This page defines the exact maths the market contract uses: precision conventions, PnL, margin, funding, liquidation, fees, capacity limits and the order-execution details integrators need. Every value is a parameter enforced by the current Stellar testnet deployment; where a value is readable on-chain, the view function is named so you can check it yourself. Addresses are on [Contracts and events](/protocol/contracts).
+
+## Where the numbers come from
+
+- **Per-market risk parameters** (leverage cap, initial and maintenance margin, maximum position size, funding limits) are stored per asset and readable with the market's `get_asset_risk(asset)`. Every pair with parameters currently uses the same ladder, shown below.
+- **Vault parameters** (fees, caps, cooldown, buffer target) are readable with the vault's getters: `get_deposit_fee`, `get_withdraw_fee`, `get_reserve_cap`, `get_asset_caps(asset)`, `get_withdraw_cooldown`, `get_buffer_target_bps`.
+- **Market-wide configuration** (minimum collateral, staleness limit, deviation band, partial-liquidation and penalty parameters, keeper fee) is set at deployment and is not exposed by a view; the values below are the ones the deployment script passed at initialization.
+- **Capacity headroom** per market is published by the gateway at `GET /v1/markets/stats`.
+
+## Precision
+
+All on-chain amounts, prices and NAV values are 7-decimal fixed-point integers. Fee rates use a finer unit, the deci-basis-point, so sub-basis-point tiers stay exact in integer maths.
+
+| Constant | Value | Meaning |
+|---|---|---|
+| `PRECISION` | `10_000_000` | 7-decimal fixed point. `10_000_000` = 1.0 (one USDC, or a price of $1.00) |
+| `BASIS_POINTS` | `10_000` | 1 bp = 0.01%; `10_000` bps = 100% |
+| `FEE_PRECISION` | `100_000` | Deci-bps: 1 unit = 0.1 bp = 0.001% |
+
+Conversion examples:
+
+```text
+$10 USDC          = 100_000_000            (10 × PRECISION)
+BTC at $65,000    = 650_000_000_000_000    (65_000 × PRECISION)
+1%                = 100 bps
+50 deci-bps       = 5 bps = 0.05%
+fee = size × fee_units / FEE_PRECISION
+    → $10,000 position at 50 deci-bps = 10_000 × PRECISION × 50 / 100_000 = $5.00
+```
+
+Percentage-style parameters (margins, penalties, caps) use plain basis points against `BASIS_POINTS`. Only the maker and taker fee tiers and the keeper fee use deci-bps.
+
+## Position PnL
+
+PnL is proportional to how far the mark price has moved from your entry, scaled by position size (size = collateral × leverage):
+
+```text
+Long:   pnl = size × (current_price − entry_price) / entry_price
+Short:  pnl = size × (entry_price − current_price) / entry_price
+```
+
+All terms are 7-decimal fixed point; the contract uses checked multiplication throughout. A $1,000 long (size) with entry $100 and mark $105 has PnL = 1,000 × 5 / 100 = +$50. The same move against a short is −$50.
+
+The mark price comes from the Noeracle price chain. See [Oracle and price feeds](/protocol/oracle) for how prices are attested, the 60-second staleness rule, the 1% deviation band and the 3% settlement clamp.
+
+## Margin
+
+### Per-market risk ladder
+
+Read with `get_asset_risk(asset)`; every configured pair currently returns the same values:
+
+| Parameter | Value |
+|---|---|
+| Maximum leverage | 10x |
+| Initial margin (`im_bps`) | 4% of notional |
+| Maintenance margin (`mm_bps`) | 2% of notional |
+| Maximum position size | $100,000 notional |
+| Funding velocity cap (`max_funding_velocity_bps`) | 1.2% per day |
+| Funding rate cap (`funding_clamp_bps`) | 0.05% per hour |
+| Skew scale | $200,000 |
+
+The contract enforces `mm_bps = im_bps / 2` and `im_bps` of at least 4%, so no market can ever offer more than 25x; the testnet ladder caps leverage at 10x explicitly. Positions opened before the ladder was activated keep the legacy 1% maintenance margin. A pair without parameters rejects every risk-increasing operation with `#88 AssetRiskNotConfigured` (fail-closed) while closes and liquidations keep working.
+
+Minimum collateral is 10 USDC (`#22 InsufficientCollateral`); the open also fails if the trading fee would consume all of it.
+
+### Isolated margin
+
+Each position carries its own collateral. A loss on one position can never touch another: what a position can lose to the vault is capped at its own collateral, and anything beyond that is booked as bad debt rather than taken from other traders.
+
+The liquidation price is precomputed at open from the pair's maintenance margin:
+
+```text
+leverage_factor = PRECISION / leverage
+margin_factor   = mm_bps × PRECISION / 10_000          // 200 bps = 2%
+adjustment      = leverage_factor − margin_factor
+
+Long:   liq_price = entry − entry × adjustment / PRECISION
+Short:  liq_price = entry + entry × adjustment / PRECISION
+```
+
+At 10x leverage with the 2% maintenance margin, a long liquidates at entry × 0.92 and a short at entry × 1.08. After a partial close, a partial liquidation or a collateral change, the liquidation price is recomputed from the actual collateral-to-size ratio.
+
+Adjusting an open isolated position:
+
+- **Partial close** (`close_position_partial`): `close_size` is notional; the closed portion's PnL and funding settle, its pro-rata collateral is refunded, and the remainder must keep at least 10 USDC of collateral (`#27 PositionTooSmall`). A full-size close delegates to `close_position`.
+- **Add collateral** (`add_collateral`): moves the liquidation price away; never pause-gated.
+- **Remove collateral** (`remove_collateral`): risk-increasing, so it is pause-gated and reads a strict price; the remaining collateral must still cover `size / max_leverage`, and equity after removal must stay above maintenance margin (`#25 InsufficientMargin`).
+
+Two more rules apply to every open:
+
+- **Auto-netting.** Opening the opposite direction in the same pair and margin mode first closes your existing opposite positions at the same strict price (no trading fee on the closed legs) and opens only the remainder. If the new order would reach or cross zero, or leave a remainder under 10 USDC, it is rejected with `#91 NetsToZero`; use the close paths instead.
+- **Acceptable price.** Opens and closes take an `acceptable_price` (0 = unbounded); a worse fill is rejected with `#87 AcceptablePriceExceeded`.
+
+### Cross margin
+
+Cross positions share one collateral pool per trader. Deposit into it with `deposit_cross_margin`, or let `open_position_cross` pull the shortfall from your wallet in the same transaction. The account-level quantities:
+
+```text
+equity             = pool_balance + Σ collateral + Σ unrealized_pnl − Σ pending_funding
+maintenance_margin = Σ size × mm_bps / 10_000        // 2% per position under the ladder
+used_margin        = Σ size / leverage               // initial margin
+free_margin        = equity − used_margin
+```
+
+| Check | When | Rule |
+|---|---|---|
+| Free-margin gate | Opening a new cross position while others are open | Rejected with `#77` unless `equity` is at least `used_margin + new_collateral` |
+| Withdrawal gate | `withdraw_cross_margin` | Rejected with `#77` unless `equity − amount` is at least `used_margin` |
+| Liquidation | Keeper calls `liquidate_cross_account` | Account liquidatable when `equity` is below `maintenance_margin` with at least one open cross position |
+
+Both gates read a fresh price for every asset in the account: a stale feed on any leg rejects with `#30`, a dead one with `#31`. Cross positions store a liquidation price of 0, since liquidation is decided at the account level. Closing a cross position returns collateral and PnL to the cross pool, not your wallet; withdraw separately. Stop-loss, take-profit and trailing-stop orders can be attached to cross positions; their proceeds also settle to the pool.
+
+## Funding
+
+Funding balances long and short open interest in each pair independently. Once an hour, `apply_funding` (permissionless; the keeper calls it) reads the pair's time-weighted average net skew (long minus short open interest) over the elapsed window, moves the hourly rate by a velocity proportional to that skew, and clamps the rate:
+
+```text
+velocity   = max_velocity × avg_skew / skew_scale × dt / 1 day   // 1.2%/day at a skew of $200,000
+rate       = clamp(previous_rate + velocity, −0.05%/h, +0.05%/h)
+cumulative += rate × hours                                      // hours = 1 per tick
+```
+
+`dt` is capped at one hour, so a missed tick under-accrues rather than pricing several hours at one instant's skew, and a pair with no risk parameters accrues nothing. On-chain the rate is a PRECISION-scaled fraction per hour: `5000` is 0.05% per hour. Sign convention: a positive rate means longs pay shorts; a negative rate means shorts pay longs. Each tick emits `funding_applied` with the asset, the rate, the hours and the cumulative index.
+
+### Cumulative index and lazy settlement
+
+Funding is not streamed to positions each hour. Each position records the pair's cumulative index at open (`entry_cumulative_funding`), and the whole accrued amount settles once, at close, partial close, liquidation or ADL close:
+
+```text
+funding = size × (cumulative_now − entry_cumulative) / PRECISION
+
+Long:   pays  +funding    // pays when the index rose, receives when it fell
+Short:  pays  −funding    // mirror image
+```
+
+Worked example: a $1,500 position held one hour at the cap rate owes 1,500 × 5,000 / 10,000,000 = $0.75; the long pays it, a short of the same size receives it.
+
+Funding you owe leaves your position's collateral for the vault together with any loss. Funding owed to you is paid by the vault together with any profit; the market never pays a receiver out of other traders' collateral. Pending funding is included in every margin, equity and liquidation check, so an unsettled funding debt can itself push a position into liquidation range.
+
+## Liquidation
+
+<Diagram name="liquidation" caption="Isolated positions. Cross accounts are liquidated as a whole, in stages, as described below." />
+
+### Isolated positions
+
+A position is liquidatable when the mark crosses its stored liquidation price (long: at or below; short: at or above), or when `collateral + pnl − funding` falls below 2% of its size (1% for positions opened before the ladder). Two more conditions apply while the position still has equity:
+
+- the breach must also hold on the smoothed mark when the shim can provide one (otherwise `#86 LiquidationNotConfirmed`), so a single wick cannot seize margin,
+- a position partially liquidated less than 30 seconds ago cannot be touched again (`#83 LiquidationCooldown`).
+
+A bankrupt position (equity at or below 0) skips both: waiting would only grow bad debt.
+
+**Partial liquidation.** A non-bankrupt position with notional above $1,000 loses a 20% tranche first. The tranche's share of the realized loss and funding comes out of collateral, a penalty of 1% of the closed notional (capped at the tranche's share of remaining equity) is split 50% to the keeper and 50% to the insurance buffer, the position shrinks in place with its liquidation price recomputed, and `position_partial_liq` is emitted. The trader then has the 30-second grace period to react. If the tranche would leave nothing to back the remainder, the call falls through to a full liquidation.
+
+**Full liquidation, non-bankrupt.** Penalty = the smaller of 1% of position size and the remaining equity, split 50% keeper and 50% buffer; the trader is refunded `remaining − penalty` (`liq_refund` event); the rest of the collateral goes to the vault.
+
+**Full liquidation, bankrupt.** The entire collateral goes to the vault, 10% of it credited to the insurance buffer; the keeper earns nothing from the position; the uncollectable gap is booked as bad debt (`bad_debt_recorded`), drawn from the insurance buffer first and absorbed by LPs only for the remainder.
+
+On every full liquidation the keeper's reward is topped up to a floor of 5 USDC from the insurance buffer, when the buffer can pay. Attached stop-loss, take-profit and trailing-stop orders are cancelled with reason `pos_closed`.
+
+### Cross accounts
+
+`liquidate_cross_account` refuses to act unless every leg's price is readable (`#78 CrossMarginNotLiquidatable`), the account's equity is below its aggregate maintenance margin, and, for an account that still has equity, the breach also holds on the smoothed mark. It then runs one of three branches:
+
+| Branch | Condition | What happens |
+|---|---|---|
+| Bankrupt | equity at or below 0 | Every leg closed, pool zeroed, no penalty, the shortfall booked as bad debt (asset `CROSS`) |
+| Close-out | equity below two thirds of aggregate maintenance margin | Every leg closed, with penalties |
+| Staged | otherwise | Legs closed worst loser first until equity is back at or above 1.5 times the remaining maintenance margin; 30-second grace between rounds |
+
+Each closed leg pays a penalty of 1% of its notional, split 50/50 between keeper and buffer and capped at the pool's positive balance; losses are bounded by the account's own funds (pool balance plus the closed legs' collateral). The call emits one `position_liquidated` per closed leg and one `cross_liq` for the account; when the account is fully closed, `liq_refund` with position ID 0 reports the residual that stays claimable on the pool. The 5 USDC keeper floor applies here too.
+
+### Auto-deleveraging
+
+ADL is the backstop for when the pool cannot cover its winners. `check_adl_trigger(asset)` (permissionless; the keeper calls it) flips the asset's ADL flag on when insurance buffer plus LP USDC falls below 1.25 times the payable winner uPnL for that asset, and clears it once coverage is back above 1.5 times; a winner paid short at settlement flips the flag immediately. While it is active, new exposure on that asset is refused (`#82`), and anyone may call `adl_close` on a net-winning position, which realizes it in full at the oracle mark (no slippage; a better-than-mark compensation from the buffer is configurable and currently 0). Events: `adl_triggered`, `adl_cleared`, `adl_executed`. The gateway lists candidates at `GET /v1/adl/queue`.
+
+<Callout type="warning">
+  Liquidation costs at least the penalty and, for a bankrupt position, all of the remaining collateral. At 10x leverage an adverse move of roughly 8% reaches the liquidation price. Size positions accordingly, even with testnet funds.
+</Callout>
+
+## Fees
+
+### Maker and taker tiers
+
+Trading fees are tiered by your 14-day rolling volume, tracked on-chain per trader. Rates are in deci-bps (`fee = size × rate / 100_000`):
+
+| Tier | 14-day volume | Maker (deci-bps) | Maker % | Taker (deci-bps) | Taker % |
+|---|---|---|---|---|---|
+| 0 | $0 | 20 | 0.020% | 50 | 0.050% |
+| 1 | at least $20,000 | 15 | 0.015% | 40 | 0.040% |
+| 2 | at least $50,000 | 10 | 0.010% | 30 | 0.030% |
+| 3 | at least $100,000 | 5 | 0.005% | 20 | 0.020% |
+
+You get the highest tier whose threshold your rolling volume meets. Volume is a 14-slot circular buffer of daily totals; days older than 14 days drop off. These thresholds are the current testnet values, lowered for testing. `get_trader_fee_info(trader)` returns your live standing, and `GET /v1/account/volume` mirrors it.
+
+Which rate applies:
+
+- **Market opens** (`open_position`, `open_position_cross`) pay the taker fee, deducted from collateral at open. If the fee would consume all collateral the open fails.
+- **Keeper-executed limit and stop-limit entries** pay the maker fee plus the keeper fee below, deducted from the order's locked collateral.
+- **Closes pay no trading fee.** A close or partial close still counts toward your 14-day volume, so closing helps you reach the next tier. Liquidations count no volume.
+
+Worked example at tier 0: a $10,000 market open costs 10,000 × 50 / 100,000 = $5.00 taker fee; the same size filled as a resting limit order costs $2.00 maker fee ($1.50 at tier 1) plus the keeper fee.
+
+### Keeper order fee
+
+When a keeper executes a triggered order, it earns a fee separate from the trading fee, computed on the position size with a flat base plus a deci-bps rate:
+
+```text
+keeper_fee = base + position_size × rate / 100_000    // base 0, rate 10 → 0.010% of size
+```
+
+It is deducted from the order's locked collateral (limit entries) or from the close proceeds (stop-loss, take-profit and trailing stops), capped at what is available. The defaults keep maker plus keeper fee at or below the taker fee at every tier.
+
+### Fee routing
+
+Every trading fee moves to the liquidity vault. A protocol share (capped by the contract at 50%; set to 20% at deployment) is routed through the vault's `route_protocol_fee`: it fills the insurance buffer up to its target of 10% of reserved payouts and overflows the rest to the treasury, emitting `protocol_fee_routed`. The remaining share raises AUM and the NOE price. See the [vault guide](/guides/vault).
+
+### Referral economics
+
+Referral economics are live on-chain (registry build `referral_v1`). When a trader bound to a referral code opens a position, the market calls the registry's `record_trade`: the referee's fee is reduced by 4%, and 10% of the fee accrues to the referrer, carved from the protocol share (never from LPs) and pushed to the registry, where the referrer claims it in USDC with `claim`. Creating a code can be gated on a minimum 14-day volume; that floor is currently 0. See [Referrals](/guides/referrals).
+
+## Pool capacity limits
+
+The liquidity vault is the counterparty to every trade, so it enforces caps at open time. Each open reserves the full position size (the maximum possible payout) against vault AUM, and the open is rejected if any limit would be breached:
+
+| Limit | Value | Rejection |
+|---|---|---|
+| Maximum position size | $100,000 notional per position | `#23 PositionTooLarge` |
+| Per-asset, per-side open interest | 25% of vault AUM (an absolute cap per asset can also be set; 0 today) | `#82 OpenInterestCapExceeded` |
+| Per-asset net skew | 15% of vault AUM; opens that reduce skew always pass | `#89 SkewCapExceeded` |
+| Aggregate reserved payout | 70% of vault AUM across all open positions | `#82 OpenInterestCapExceeded` |
+| Physical liquidity | Reservations cannot exceed the vault's USDC balance minus earmarked shortfall repayments | `#40 InsufficientLiquidity` |
+| ADL active on the asset | No new exposure while the flag is set | `#82 OpenInterestCapExceeded` |
+| Asset halted by the admin | No risk-increasing operations on that asset | `#92 AssetHalted` |
+
+When a cap is hit, the open fails with the contract error above; nothing is partially filled. Reservations are released as positions close or liquidate, so capacity frees up as open interest unwinds. Closes and liquidations are never blocked by the caps.
+
+`GET /v1/markets/stats` publishes a `capacity` block per market with `headroomLong` and `headroomShort` (the largest notional that would pass right now), `bindingLong` and `bindingShort` (which limit binds), `sideCap`, `skewCap`, `assetCapBps`, `capAbs`, `skewCapBps` and `maxPositionSize`, plus a `pool` block with `aum`, `reservedPayout`, `reserveCapBps`, `reserveCap` and `aggregateHeadroom`. The app's order panel reads it before you submit.
+
+## Order execution details
+
+Full order-type semantics live in the [Trading guide](/guides/trading) and the [trading API reference](/developers/rest-api/trading). This section covers the contract-level details that matter when you build against the market directly or through the SDKs.
+
+### `time_in_force` bit encoding
+
+`time_in_force` is a `u32` bitfield on `place_limit_order` and `place_stop_limit_order`:
+
+| Bits | Meaning | Values |
+|---|---|---|
+| 0 to 7 | TIF mode | `0` = GTC, `1` = IOC, `2` = Post-Only; any mode above 2 fails with `#5 InvalidParameter` |
+| 8 | Reduce-only flag | `0x100` |
+
+Combine them: `0x100` is a reduce-only GTC order, `0x101` reduce-only IOC. For stop-limit orders, IOC and Post-Only apply to the limit phase, not the stop trigger. Post-Only reads a strict price at placement and rejects an order that would fill immediately (`#70 PostOnlyViolation`). An IOC order whose trigger condition is not already met is stored as `Cancelled`, its collateral is refunded, and `order_cancelled` fires with reason `ioc_not_filled`; the placement call still succeeds and returns the cancelled order.
+
+A reduce-only order never opens exposure. At execution the contract finds the trader's largest opposing isolated position in the same asset (a cross position only when the order covers it in full), refunds the order's locked collateral, and closes that position, partially if the order is smaller than the position, through the standard close settlement; the keeper still earns its fee. If no suitable position exists, the order is cancelled with reason `reduce_only_no_position` and the keeper earns nothing. Reduce-only executions use the lenient price path, since they reduce risk.
+
+### Slippage: orders cancel, they do not revert
+
+At execution the contract computes actual slippage against the order's reference price (`limit_price` for take-limit and active stop-limits, otherwise `trigger_price`):
+
+```text
+actual_slippage_bps = |current_price − reference_price| × 10_000 / reference_price
+```
+
+The band-and-cancel rule applies only to price-or-better variants: limit entries, stop-limits in their limit phase, and take-limits. If it exceeds the order's `slippage_tolerance_bps`, the order is cancelled, not reverted: locked collateral is refunded, position links are cleaned up, the status becomes `CancelledSlippage`, an `order_cancelled` event fires with reason `slippage`, and `execute_order` returns success with a zero reward so the state change commits. Stop-loss, trailing-stop and market take-profit orders are fill-guaranteed at the oracle price; their tolerance is advisory, because cancelling a protective close would abandon the position in exactly the gap the stop exists for. Those protective orders also evaluate their trigger on the smoothed mark when the shim can provide one, while the fill itself uses the fresh spot price.
+
+Entry executions re-check the pair's leverage cap and maximum size at fill time; an order that no longer fits is cancelled with reason `risk_config` (or `asset_unconfigured` when the pair has no risk parameters) and its collateral refunded.
+
+### Events on placement
+
+Every placement function emits `order_placed (order_id, trader, trigger_price)`: `place_limit_order`, `place_stop_limit_order`, `set_stop_loss`, `set_take_profit` and `place_trailing_stop`. A trailing stop carries no trigger price of its own until the peak moves, so its third field is the current mark at placement. Executions (`order_executed`) and cancellations (`order_cancelled`, with reasons `user`, `slippage`, `ioc_not_filled`, `pos_closed`, `reduce_only_no_position`, `asset_unconfigured` and `risk_config`) are emitted uniformly for all order types.
+
+### Order lifecycle notes
+
+- Order status values: `Pending = 0`, `Executed = 1`, `Cancelled = 2`, `CancelledSlippage = 3` (`Expired = 4` is declared but never set).
+- Orders are status-updated, never deleted; positions are deleted from storage on close or liquidation.
+- Position and order IDs start at 1. A trader can hold at most 32 open positions and the market at most 1,000.
+- One stop-loss, one take-profit and one trailing stop per position; a duplicate attach fails with `#67 OrderAlreadyExists`. Trailing distance is 0.01% to 50% (`#69 InvalidTrailingPercent`); slippage tolerance is 0.01% to 100% (`#66 InvalidSlippageTolerance`).
+- `cancel_order` is owner-only, works only on `Pending` orders, refunds locked collateral for limit and stop-limit entries, and is never pause-gated.
+
+### Pause modes
+
+| Mode | Name | Blocked | Still allowed |
+|---|---|---|---|
+| 1 | Halt-open | Opens, new entry orders, collateral removal, entry executions (`#4 Paused`) | Closes, partial closes, adding collateral, cross deposits and withdrawals, protective and reduce-only orders, liquidations, funding, cancellations |
+| 2 | Full-freeze | Closes, liquidations, stops and funding as well (`#90 Frozen`) | `cancel_order`, `add_collateral` and the ADL entry points; auto-degrades to halt-open after 72 hours |
+
+`get_pause_state` returns the mode and since when, and `GET /v1/health` echoes it. Separately, the admin can halt one asset (`#92 AssetHalted`): risk-increasing operations on that pair stop while closes, liquidations and cancellations keep working.
+
+Contract error numbers referenced on this page are listed in full in the [error reference](/developers/errors).
+
+## Next steps
+
+- [Oracle and price feeds](/protocol/oracle): where the mark price comes from, staleness and deviation rules
+- [Contracts and events](/protocol/contracts): deployed addresses and every event these paths emit
+- [Trading guide](/guides/trading): the same mechanics from the trader's point of view

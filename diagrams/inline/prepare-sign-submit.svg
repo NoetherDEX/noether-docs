@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 748 772" role="img" aria-labelledby="prepare-sign-submit-title prepare-sign-submit-desc" class="dd-svg">
+<title id="prepare-sign-submit-title">Prepare, sign, submit</title>
+<desc id="prepare-sign-submit-desc">A trade through the gateway: the client asks the gateway to prepare a simulated, unsigned transaction, signs it locally with the wallet so the key never reaches the gateway, submits the signed XDR, and the gateway sends it to the Stellar network and reports the final status.</desc>
+<style>.dd-sans{font-family:var(--font-inter,'Inter'),system-ui,sans-serif}.dd-mono{font-family:var(--font-jetbrains-mono,'JetBrains Mono'),ui-monospace,monospace}.dd-serif{font-family:var(--font-instrument-serif,'Instrument Serif'),Georgia,serif}</style>
+<defs>
+<marker id="prepare-sign-submit-a" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#BFC0C0"/></marker>
+<marker id="prepare-sign-submit-a-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#F08A59"/></marker>
+<marker id="prepare-sign-submit-a-link" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#6A95D8"/></marker>
+<marker id="prepare-sign-submit-a-open" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polyline points="0 0, 8 3, 0 6" fill="none" stroke="#BFC0C0" stroke-width="1.2"/></marker>
+</defs>
+<rect width="100%" height="100%" fill="#2D3142"/>
+<line x1="104" y1="104" x2="104" y2="664" stroke="rgba(245,245,245,0.20)" stroke-width="1" stroke-dasharray="3,3"/>
+<line x1="284" y1="104" x2="284" y2="664" stroke="rgba(245,245,245,0.20)" stroke-width="1" stroke-dasharray="3,3"/>
+<line x1="464" y1="104" x2="464" y2="664" stroke="rgba(245,245,245,0.20)" stroke-width="1" stroke-dasharray="3,3"/>
+<line x1="644" y1="104" x2="644" y2="664" stroke="rgba(245,245,245,0.20)" stroke-width="1" stroke-dasharray="3,3"/>
+<path d="M 286,160 L 462,160" fill="none" stroke="#6A95D8" stroke-width="1.2" marker-end="url(#prepare-sign-submit-a-link)"/>
+<rect x="341" y="136" width="67" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="374" y="148" class="dd-mono" font-size="12" fill="#6F9ADD" text-anchor="middle" letter-spacing="0.06em" data-maxw="67">PREPARE</text>
+<path d="M 464,216 L 488,216 Q 496,216 496,224 L 496,232 Q 496,240 488,240 L 466,240" fill="none" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#prepare-sign-submit-a)"/>
+<rect x="504" y="220" width="75" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="510" y="232" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="start" letter-spacing="0.06em">SIMULATE</text>
+<path d="M 462,288 L 286,288" fill="none" stroke="#BFC0C0" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#prepare-sign-submit-a)"/>
+<rect x="321" y="264" width="107" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="374" y="276" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" letter-spacing="0.06em" data-maxw="107">UNSIGNED XDR</text>
+<path d="M 282,344 L 106,344" fill="none" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#prepare-sign-submit-a)"/>
+<rect x="173" y="320" width="43" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="194" y="332" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" letter-spacing="0.06em" data-maxw="43">SIGN</text>
+<path d="M 106,400 L 282,400" fill="none" stroke="#BFC0C0" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#prepare-sign-submit-a)"/>
+<rect x="149" y="376" width="91" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="194" y="388" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" letter-spacing="0.06em" data-maxw="91">SIGNED XDR</text>
+<path d="M 286,456 L 462,456" fill="none" stroke="#6A95D8" stroke-width="1.2" marker-end="url(#prepare-sign-submit-a-link)"/>
+<rect x="345" y="432" width="59" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="374" y="444" class="dd-mono" font-size="12" fill="#6F9ADD" text-anchor="middle" letter-spacing="0.06em" data-maxw="59">SUBMIT</text>
+<path d="M 466,512 L 642,512" fill="none" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#prepare-sign-submit-a)"/>
+<rect x="521" y="488" width="67" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="554" y="500" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" letter-spacing="0.06em" data-maxw="67">SEND TX</text>
+<path d="M 642,568 L 466,568" fill="none" stroke="#BFC0C0" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#prepare-sign-submit-a)"/>
+<rect x="525" y="544" width="59" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="554" y="556" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" letter-spacing="0.06em" data-maxw="59">STATUS</text>
+<path d="M 462,624 L 286,624" fill="none" stroke="#F08A59" stroke-width="1" stroke-dasharray="4,3" marker-end="url(#prepare-sign-submit-a-accent)"/>
+<rect x="341" y="600" width="67" height="16" rx="2" fill="#2D3142" data-label-mask="1"/>
+<text x="374" y="612" class="dd-mono" font-size="12" fill="#F08A59" text-anchor="middle" letter-spacing="0.06em" data-maxw="67">SUCCESS</text>
+<rect x="40" y="40" width="128" height="64" rx="6" fill="#2D3142"/>
+<rect x="40" y="40" width="128" height="64" rx="6" fill="rgba(240,138,89,0.10)" stroke="#F08A59" stroke-width="1"/>
+<text x="104" y="68" class="dd-sans" font-size="16" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="112">Wallet</text>
+<text x="104" y="87" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" data-maxw="112">keeps the key</text>
+<rect x="220" y="40" width="128" height="64" rx="6" fill="#2D3142"/>
+<rect x="220" y="40" width="128" height="64" rx="6" fill="#393E53" stroke="#F5F5F5" stroke-width="1"/>
+<text x="284" y="68" class="dd-sans" font-size="16" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="112">Client</text>
+<text x="284" y="87" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" data-maxw="112">SDK or bot</text>
+<rect x="400" y="40" width="128" height="64" rx="6" fill="#2D3142"/>
+<rect x="400" y="40" width="128" height="64" rx="6" fill="#393E53" stroke="#F5F5F5" stroke-width="1"/>
+<text x="464" y="68" class="dd-sans" font-size="16" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="112">Gateway</text>
+<text x="464" y="87" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" data-maxw="112">holds no keys</text>
+<rect x="580" y="40" width="128" height="64" rx="6" fill="#2D3142"/>
+<rect x="580" y="40" width="128" height="64" rx="6" fill="rgba(245,245,245,0.03)" stroke="#8E98AC" stroke-width="1"/>
+<text x="644" y="68" class="dd-sans" font-size="16" fill="#F5F5F5" text-anchor="middle" font-weight="600" data-maxw="112">Stellar</text>
+<text x="644" y="87" class="dd-mono" font-size="12" fill="#BFC0C0" text-anchor="middle" data-maxw="112">testnet RPC</text>
+<line x1="40" y1="688" x2="708" y2="688" stroke="rgba(245,245,245,0.12)" stroke-width="0.8"/>
+<text x="40" y="716" class="dd-mono" font-size="10" fill="#909AAE" text-anchor="start" letter-spacing="0.14em">LEGEND</text>
+<rect x="107" y="705" width="20" height="14" rx="3" fill="rgba(240,138,89,0.10)" stroke="#F08A59" stroke-width="1"/>
+<text x="135" y="716" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">Signs locally</text>
+<path d="M 252,712 L 274,712" stroke="#6A95D8" stroke-width="1.2" marker-end="url(#prepare-sign-submit-a-link)"/>
+<text x="284" y="716" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">HTTP request</text>
+<path d="M 394,712 L 416,712" stroke="#BFC0C0" stroke-width="1.2" marker-end="url(#prepare-sign-submit-a)"/>
+<text x="426" y="716" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">Call</text>
+<path d="M 482,712 L 504,712" stroke="#BFC0C0" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#prepare-sign-submit-a)"/>
+<text x="514" y="716" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">Response</text>
+<path d="M 107,740 L 129,740" stroke="#F08A59" stroke-width="1.2" marker-end="url(#prepare-sign-submit-a-accent)"/>
+<text x="139" y="744" class="dd-mono" font-size="11" fill="#BFC0C0" text-anchor="start" letter-spacing="0.02em">Final status</text>
+</svg>

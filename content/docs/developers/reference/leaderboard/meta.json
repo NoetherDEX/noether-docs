@@ -1,0 +1,8 @@
+{
+  "title": "Leaderboard",
+  "pages": [
+    "get-leaderboard",
+    "get-leaderboard-rank",
+    "get-leaderboard-totals"
+  ]
+}

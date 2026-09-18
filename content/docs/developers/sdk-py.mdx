@@ -1,0 +1,312 @@
+---
+title: "Python SDK"
+description: "Install noether-sdk 0.2.0 from PyPI, create the async client, read markets, issue a key, trade, and stream WebSocket channels."
+---
+
+`noether-sdk` on PyPI is the official async Python client for the Noether gateway: REST sub-clients for markets, oracle prices, accounts, order preparation and transaction submission, plus a reconnecting WebSocket client. This page documents the published 0.2.0 release ([PyPI](https://pypi.org/project/noether-sdk/), [changelog](https://github.com/NoetherDEX/noether/blob/main/sdk-py/CHANGELOG.md)); every method below was exercised against the live gateway.
+
+## Install
+
+Requires Python 3.10 or newer.
+
+```bash
+pip install noether-sdk
+
+# Optional: stellar-sdk, for keys.create and for signing transactions locally with a Keypair
+pip install "noether-sdk[stellar]"
+```
+
+- 0.2.0 depends on `httpx`, `pydantic` v2 and `websockets` (declared as `>=12,<14`, so no manual pin is needed).
+- The `stellar` extra pulls in `stellar-sdk` and is imported lazily: every read endpoint works without it. You need it for `keys.create` and to sign the transaction XDRs returned by `orders.prepare`.
+- The SDK is async-only: every method is a coroutine built on `httpx.AsyncClient`. There is no sync client.
+
+## Create a client
+
+`base_url` is a required positional argument; there is no default.
+
+```python
+import asyncio
+from noether_sdk import NoetherClient
+from noether_sdk.transport import Credentials
+
+async def main():
+    async with NoetherClient(
+        "https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io",
+        credentials=Credentials("nk_...", "..."),  # positional: key_id, secret; omit for public endpoints
+    ) as client:
+        print(await client.health.ping())
+
+asyncio.run(main())
+```
+
+- `Credentials(key_id, secret)` are the two halves of your API key. On the wire they become an `Authorization: Bearer` header whose value is `keyId:secret`, plus the `X-Timestamp` header (unix seconds) the gateway requires on authenticated calls.
+- Public endpoints (markets, oracle, events, trades, positions, vaults, referral lookups) need no credentials at all.
+- `client.with_credentials(creds)` returns a fresh client bound to a key; `client.has_auth` tells you whether one is set.
+- Use `async with`, or call `await client.aclose()` yourself. The default HTTP timeout is 30 seconds; override it by passing your own `httpx.AsyncClient(timeout=...)` via the `client=` keyword.
+
+## Quickstart: read markets and prices
+
+No API key needed.
+
+```python
+import asyncio
+from noether_sdk import NoetherClient
+
+BASE = "https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io"
+
+async def main():
+    async with NoetherClient(BASE) as client:
+        markets = await client.markets.list()          # 16 markets today
+        for m in markets:
+            print(m.asset.symbol, m.oracle.price_float)
+
+        btc = await client.oracle.get_price("BTC")
+        print("BTC oracle:", btc.price_float, "raw 7-decimal string:", btc.price)
+
+        stats = await client.markets.stats()
+        row = next(s for s in stats.stats if s.asset == "BTC")
+        print("BTC headroom long:", row.capacity.headroom_long if row.capacity else None)
+
+asyncio.run(main())
+```
+
+Things to notice:
+
+- `MarketSummary.asset` is an object (`.symbol`, `.name`, `.decimals`), not a bare string.
+- `OracleSnapshot.price` is the exact 7-decimal fixed-point integer as a string (`10000000` is $1.00); `.price_float` is the lossy float convenience.
+- REST responses are pydantic v2 models with snake_case attributes: the gateway's camelCase JSON (`priceFloat`) parses into `.price_float` automatically.
+- `AssetStats.capacity` and `MarketStatsResponse.pool` and `.custody` are `None`, never zeros, when the gateway could not read the chain or the keeper has not reported.
+
+## Quickstart: issue an API key
+
+`keys.create` runs the whole wallet-challenge flow: it requests a challenge, wraps it as a `manageData` operation on a placeholder transaction, has your signer sign the transaction hash, and exchanges the signed XDR for a key. This is the format the gateway verifies, and it works in 0.2.0 (the 0.1.1 flow that always failed with 401 was fixed in 0.1.2). It needs the `stellar` extra.
+
+```python
+import asyncio
+from stellar_sdk import Keypair
+from noether_sdk import NoetherClient
+from noether_sdk.transport import Credentials
+
+BASE = "https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io"
+
+async def main():
+    kp = Keypair.from_secret("S...")
+    async with NoetherClient(BASE) as client:
+        status = await client.keys.beta_status(kp.public_key)
+        print("gated:", status.gated, "allowed:", status.allowed)
+
+        issued = await client.keys.create(
+            address=kp.public_key,
+            signer=lambda data: kp.sign(data),   # receives the 32-byte tx hash, returns the signature bytes
+            label="bot",
+        )
+        print(issued.key_id, issued.secret)      # the secret is shown once; store it now
+
+        authed = client.with_credentials(Credentials(issued.key_id, issued.secret))
+        print(await authed.account.me())
+        await authed.aclose()
+
+asyncio.run(main())
+```
+
+<Callout type="warning" title="Closed beta">
+Issuance is allowlist-gated: a wallet that is not on the access list gets a `ForbiddenError` (HTTP 403, `error.code == "not_in_beta"`). A wallet that already holds the maximum number of active keys gets a `ConflictError` (`key_limit_reached`). Check `keys.beta_status(address)` first, and see [Authentication](/developers/authentication) for the gating details.
+</Callout>
+
+`keys.create` signs against the testnet passphrase by default; pass `network_passphrase=` to override it. If you already hold a signed envelope, `keys.exchange(address=, challenge=, signed_xdr=, label=)` submits it directly.
+
+## Quickstart: open a position
+
+Trading is three steps: the gateway prepares an unsigned transaction, you sign it locally (your Stellar secret never leaves your machine), and the gateway submits it and polls for the result. `execute_trade` runs all three and returns a tuple `(prepared, submitted)`, not an object as in the TypeScript SDK.
+
+Prerequisites: an API key, the `[stellar]` extra installed, and testnet USDC in your wallet. Friendbot only provides XLM, so fund collateral from the app's [faucet](https://testnet.noether.exchange/faucet) first; the market's minimum collateral is 10 USDC (`100000000`).
+
+```python
+import asyncio
+from stellar_sdk import Keypair, Network, TransactionBuilder
+from noether_sdk import NoetherClient
+from noether_sdk.transport import Credentials
+
+BASE = "https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io"
+
+async def main():
+    kp = Keypair.from_secret("S...")  # the wallet that owns the API key
+
+    async with NoetherClient(BASE, credentials=Credentials("nk_...", "...")) as client:
+        def sign_xdr(xdr: str) -> str:
+            tx = TransactionBuilder.from_xdr(xdr, Network.TESTNET_NETWORK_PASSPHRASE)
+            tx.sign(kp)
+            return tx.to_xdr()
+
+        prepared, submitted = await client.execute_trade(
+            {
+                "op": "open_position",
+                "asset": "XLM",
+                "collateral": 100 * 10_000_000,  # 100 USDC (7-decimal fixed point)
+                "leverage": 2,
+                "direction": "Long",
+            },
+            sign_xdr,
+        )
+        print("submitted:", submitted.hash, submitted.status)
+        if submitted.status == "FAILED":
+            print("contract error:", submitted.contract_error, "host error:", submitted.host_error)
+
+asyncio.run(main())
+```
+
+`submitted.status` is `SUCCESS`, `FAILED` or `PENDING`; the gateway polls the transaction for you after submission (`poll_timeout_ms=` sets the window). On `FAILED`, `contract_error` (`.code`, `.name`) is filled when the contract reverted and `host_error` (`.type`, `.code`) when the Soroban host aborted outside contract code. The manual equivalent of `execute_trade`:
+
+```python
+prepared = await client.orders.prepare(request)      # dict, see ops below
+signed = sign_xdr(prepared.xdr)                      # prepared.xdr is a base64 unsigned envelope
+submitted = await client.tx.submit(signed_xdr=signed)
+```
+
+Unlike the TypeScript client, `execute_trade` does not retry: a `PENDING` result is yours to resubmit with the same signed XDR, and a `ServiceUnavailableError` (503 `try_again_later`) carries `retry_after_sec` for the wait.
+
+### Order operations
+
+`orders.prepare` takes a plain `dict`. The `op` field selects the operation; all ten gateway ops are supported:
+
+| `op` | Purpose |
+|---|---|
+| `open_position` / `open_position_cross` | Open an isolated or cross-margin position |
+| `close_position` / `close_position_cross` | Close a position by id |
+| `place_limit_order` | Limit order with trigger price and condition |
+| `place_stop_limit_order` | Stop-limit (trigger price plus limit price) |
+| `place_trailing_stop` | Trailing stop on an open position |
+| `set_stop_loss` / `set_take_profit` | Attach a stop loss or take profit to an open position |
+| `cancel_order` | Cancel a pending order by id |
+
+Field conventions:
+
+- snake_case keys are accepted and translated to the wire names (`trigger_price`, `limit_price`, `position_id`, `order_id`, `trigger_condition`, `slippage_tolerance_bps`, `trailing_percent_bps`, `time_in_force`, `reduce_only`); camelCase keys pass through unchanged, so either style works.
+- `collateral`, `trigger_price` and `limit_price` are 7-decimal fixed point (`10_000_000` is 1 USDC or $1.00) and may be passed as `int` or string.
+- `slippage_tolerance_bps` and `trailing_percent_bps` are plain basis points: `50` is 0.50%.
+- `leverage` is a plain integer (1 to 10 on the current deployment). `direction` is `Long` or `Short`; `trigger_condition` is `Above` or `Below`.
+- `time_in_force` (`0` GTC, `1` IOC, `2` post-only) and `reduce_only` apply to `place_limit_order` and `place_stop_limit_order`; `limit_price` on `set_take_profit` turns it into a take-limit.
+
+Full request shapes are on [Orders and transactions](/developers/rest-api/trading).
+
+## WebSocket
+
+The WebSocket client lives in its own module and takes an explicit URL: derive it from the gateway base by swapping the scheme and appending `/v1/ws`.
+
+```python
+import asyncio
+from noether_sdk.ws import WsClient
+from noether_sdk.transport import Credentials
+
+async def main():
+    ws = WsClient(
+        "wss://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/ws",
+        credentials=Credentials("nk_...", "..."),   # optional; only account.* channels need login
+        on_rejected=lambda channels, reason: print("rejected:", channels),
+        on_login=lambda ok, error: print("login:", ok, error),
+    )
+    await ws.connect()   # returns on the server hello; raises TimeoutError after connect_timeout (default 15 s)
+
+    def on_tick(data, channel):
+        # data is the raw JSON dict with camelCase keys, not converted to snake_case
+        print(f"[{channel}] {data['asset']} = {data['priceFloat']}")
+
+    await ws.subscribe("ticker.BTC", on_tick)
+    await asyncio.sleep(60)
+    await ws.close()
+
+asyncio.run(main())
+```
+
+- Handlers receive `(data, channel)` and may be sync or async.
+- Payload keys stay camelCase. Unlike REST responses, WebSocket `data` is the raw JSON dict: read `data["priceFloat"]`, not `.price_float`.
+- Constructor options: `min_backoff` (0.25 s), `max_backoff` (30 s), `auto_reconnect` (`True`), `connect_timeout` (15 s), `on_rejected`, `on_login`. Methods: `connect`, `close`, `subscribe`, `unsubscribe`, `ping`, `set_credentials`, and the `is_open` property.
+- The client auto-reconnects with exponential backoff and replays your login and subscriptions after each reconnect; `account.*` subscriptions are re-sent after every successful login ack. `connect()` raises `TimeoutError` on timeout and `ConnectionError` when it gives up (auto-reconnect off) or is closed first, so it never hangs.
+- Available channels: `ticker.<ASSET>`, `trades.<ASSET>`, `events`, and the login-gated `account.events.<ADDRESS>` (your own address only). Channel details and payloads are on the [WebSocket API](/developers/websocket) page.
+
+## Method reference (0.2.0)
+
+All methods are coroutines. "Auth" means the client must be constructed with `Credentials`.
+
+| Sub-client | Method | Auth | Returns |
+|---|---|---|---|
+| `health` | `ping()` | no | `HealthStatus` (`.status`, `.uptime`, `.version`) |
+| `markets` | `list()` | no | `list[MarketSummary]` |
+| `markets` | `get(asset)` | no | `MarketSummary` (asset upper-cased for you; `NotFoundError` on an unknown asset) |
+| `markets` | `stats()` | no | `MarketStatsResponse` (`.stats`, `.solvency`, `.pool`, `.custody`) |
+| `markets` | `candles(asset, interval=, limit=)` | no | `CandlesResponse` (`.candles`, `.source`) |
+| `oracle` | `get_price(asset)` / `get_prices()` | no | `OracleSnapshot` / `list[OracleSnapshot]` |
+| `oracle` | `health()` | no | `OracleHealth` (`.status` is `ok`, `degraded` or `down`) |
+| `events` | `list(topic=, contract=, from_ledger=, to_ledger=, before_ts=, limit=)` | no | `list[RawEvent]` |
+| `keys` | `beta_status(address=None)` | no | `BetaStatus` |
+| `keys` | `request_challenge(address)` | no | `IssuedChallenge` |
+| `keys` | `exchange(address=, challenge=, signed_xdr=, label=)` / `create(address=, signer=, label=, network_passphrase=)` | no | `IssuedApiKey` |
+| `keys` | `list()` / `revoke(key_id)` | yes | `list[ApiKeyRecord]` / `None` |
+| `account` | `me()` | yes | `AccountIdentity` (`.owner`, `.tier`, `.key_id`) |
+| `account` | `events(topic=, before_ts=, limit=)` / `orders(before_ts=, limit=)` | yes | `list[RawEvent]` |
+| `account` | `positions()` | yes | `AccountPositionsResponse` (`.positions` rows plus your position `.events`) |
+| `account` | `volume(address)` / `shortfall(address)` | no | `AccountVolume` / `AccountShortfall` |
+| `orders` | `open(trader=, status=, limit=)` | no | `list[OrderEventRow]` |
+| `orders` | `prepare(request)` | yes | `PreparedTransaction` (`.op`, `.trader`, `.xdr`, `.min_resource_fee`) |
+| `tx` | `submit(signed_xdr=, poll_timeout_ms=None)` | yes | `SubmittedTx` (`.hash`, `.status`, `.ledger`, `.contract_error`, `.host_error`) |
+| `positions` | `open(trader=None)` | no | `list[OpenPositionRow]` (rows carry `.adl_quintile`) |
+| `trades` | `list(trader=, asset=, before_ts=, limit=, include_opens=)` | no | `list[TradeRow]` |
+| `adl` | `queue(asset, trader=None)` | no | `AdlQueueResult` (`.rows`, `.degraded`, `.updated_at`) |
+| `vaults` | `list(leader=, limit=)` | no | `list[VaultRow]` |
+| `vaults` | `get(vault_id)` | no | `VaultRow` or `None` on an unknown id |
+| `vaults` | `trades(id, limit=)` | no | `list[VaultTradeRow]` |
+| `vaults` | `deposits(id, limit=)` / `withdraws(id, limit=)` / `fee_claims(id, limit=)` | no | `list[VaultActivityRow]` |
+| `referral` | `lookup_code(code)` | no | `ReferrerRow` or `None` |
+| `referral` | `info(address)` | no | `ReferralMeResponse` or `None` when the address has no code |
+| `referral` | `me()` | yes | `ReferralMeResponse` |
+| `referral` | `trades(limit=)` / `claims(limit=)` | yes | `list[ReferralTradeRow]` / `list[ReferralClaimRow]` |
+
+The leaderboard endpoints are not wrapped in 0.2.0; call `GET /v1/leaderboard` directly if you need them.
+
+## Python-specific gotchas
+
+- `ReferralMeResponse.self_`: the field holding your own `ReferrerRow` is named `self_` with a trailing underscore, because `self` is reserved in Python. `.binding` holds your referral binding, if any.
+- `vaults.get()` returns `None` on a missing id instead of raising `NotFoundError` (the TypeScript SDK throws). Check for `None` before touching attributes. `referral.lookup_code()` and `referral.info()` behave the same way.
+- Calling an authed method without credentials raises immediately: the client raises `AuthError` (with `status=401`, `body=None`) locally, before any HTTP request is made. `execute_trade` raises `RuntimeError` instead.
+- REST models are snake_case, WebSocket payloads are camelCase: `snapshot.price_float` from REST, `data["priceFloat"]` in a WS handler.
+- `account.positions()` returns both live rows and history: `.positions` is the open-positions projection for your wallet and `.events` your position events from the indexer.
+
+## Errors
+
+All error classes are importable from the package root (`from noether_sdk import AuthError, RateLimitError, ...`). Hierarchy: `NoetherError`, then `ApiError`, then the specific classes below. Every API error carries `.status`, `.body` (the parsed JSON error body, for example `{"error": "simulation_failed"}`), `.url`, and a `.code` property that returns the body's `error` string (or `None`).
+
+| Condition | Exception | Extra fields |
+|---|---|---|
+| Network or connection failure | `NetworkError` | `.cause` |
+| HTTP 401 | `AuthError` | |
+| HTTP 403 | `ForbiddenError` (subclass of `AuthError`) | |
+| HTTP 404 | `NotFoundError` | |
+| HTTP 409 | `ConflictError` | |
+| HTTP 429 | `RateLimitError` | `.retry_after_sec` (`int` or `None`, from the `Retry-After` header) |
+| HTTP 451 | `RegionRestrictedError` | |
+| HTTP 503 | `ServiceUnavailableError` (subclass of `ServerError`) | `.retry_after_sec` |
+| HTTP 500 and above (other) | `ServerError` | |
+| Any other non-2xx (including 400) | `BadRequestError` | |
+
+```python
+import asyncio
+from noether_sdk import RateLimitError, BadRequestError, ServiceUnavailableError
+
+try:
+    prepared = await client.orders.prepare(request)
+except RateLimitError as e:
+    await asyncio.sleep(e.retry_after_sec or 5)
+except ServiceUnavailableError as e:
+    await asyncio.sleep(e.retry_after_sec or 2)
+except BadRequestError as e:
+    print("gateway rejected the request:", e.code, e.body)
+```
+
+Gateway error bodies and rate limits are documented on the [Errors](/developers/errors) page.
+
+## Next steps
+
+- [Authentication](/developers/authentication): how API keys are issued and used
+- [REST API](/developers/rest-api): every endpoint behind these sub-clients
+- [WebSocket API](/developers/websocket): channels, payloads, connection limits
+- [TypeScript SDK](/developers/sdk-ts): the same gateway surface for Node and browsers

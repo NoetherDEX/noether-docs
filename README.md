@@ -1,55 +1,76 @@
 # Noether Documentation
 
-Official documentation for [Noether](https://noether.exchange) — the decentralized
-perpetual futures exchange on Stellar. User guides, REST/WebSocket API reference,
-SDK quickstarts, and protocol documentation.
+Official documentation for [Noether](https://noether.exchange), the decentralized
+perpetual futures exchange on Stellar. Live at **https://docs.noether.exchange**.
 
-Built with [Nextra 3](https://nextra.site) on Next.js 14. Fully static — no
-environment variables required.
+Built with [Fumadocs](https://fumadocs.dev) on Next.js, styled with the app's own
+design tokens (see `app/global.css`). Dark only, like the app.
 
 ## Development
 
 ```bash
 npm install
-npm run dev     # http://localhost:3000
-npm run build   # production build (what Vercel runs)
+npm run dev          # http://localhost:3000
+npm run build        # production build (what Vercel runs)
+npm run types:check  # next typegen + tsc
 ```
 
-> Tip: clone to a path that is **not** iCloud/Dropbox-synced — `node_modules`
-> sync churn makes installs and builds slow.
-
-## Updating the API reference
-
-The interactive [API Explorer](/developers/api-explorer) and the REST reference are
-based on `public/openapi.json`, a committed snapshot of the live gateway spec.
-Refresh it after API deploys:
-
-```bash
-npm run fetch:openapi   # pulls https://noetherapi-production.up.railway.app/docs/json
-```
-
-Override the source with `NOETHER_OPENAPI_URL` if the gateway moves.
+Clone to a path that is not iCloud/Dropbox-synced; `node_modules` sync churn makes
+installs and builds slow.
 
 ## Structure
 
 ```
-pages/
-  guides/       User guides — getting started, trading, vaults, referrals, FAQ
-  developers/   REST + WebSocket reference, API explorer, SDK quickstarts, errors
-  protocol/     Architecture, oracle price chain, trading mechanics, contracts
-public/
-  openapi.json  Committed snapshot of the gateway's OpenAPI spec
+app/                 Next.js app router: home, docs catch-all, llms.txt, OG, search
+content/docs/        MDX pages + meta.json (sidebar order). Docs are mounted at "/".
+  guides/            Trader guides
+  developers/        Gateway overview, auth, REST guides, WebSocket, SDKs, errors
+  developers/reference/   GENERATED endpoint reference (do not edit by hand)
+  protocol/          Architecture, oracle, mechanics, contracts, networks, security, changelog
+components/          MDX components, data-driven tables, status strip, wordmark
+data/                GENERATED snapshots: contracts.json, markets.json
+public/openapi.json  GENERATED, normalised copy of the gateway's OpenAPI spec
+scripts/             fetch-openapi, fetch-data, generate-api
 ```
+
+## Keeping facts generated
+
+Addresses, the market list and the endpoint reference are generated from live
+sources so they cannot drift from the deployment. After an API deploy or a
+contract redeploy:
+
+```bash
+npm run fetch:all    # = fetch:openapi + fetch:data + generate:api
+git add -A && git commit -m "chore: refresh generated data"
+```
+
+- `fetch:openapi` pulls the gateway spec, drops app-internal routes, sets `servers`
+  to the public base URL and adds tags/operationIds. Override the source with
+  `NOETHER_OPENAPI_URL`, the public base with `NOETHER_API_URL`.
+- `fetch:data` snapshots `/v1/health` (contract addresses, cross-checked against the
+  main repo's `contracts.json`) and `/v1/markets`.
+- `generate:api` rebuilds `content/docs/developers/reference/` from the spec.
+
+Code samples in MDX carry the base URL as a literal. If the hostname changes, run a
+project-wide replace and update `lib/site.ts` together.
+
+## Writing pages
+
+- Frontmatter: `title`, `description`. Sentence case. No H1 in the body.
+- Components available without imports: `Callout` (`type="info" | "warning" | "error"`),
+  `Steps` (every `###` inside becomes a numbered step), `Tabs`/`Tab`, `Cards`/`Card`,
+  `ContractsTable`, `ContractsMeta`, `Address name="market"`, `MarketsTable`.
+- Callouts only where they change a decision. The testnet notice lives in the chrome.
+- Link the app as `https://testnet.noether.exchange`; `noether.exchange` is the marketing site.
 
 ## Deployment
 
-Deployed on Vercel (framework preset: Next.js, no env vars). Every push to `main`
-auto-deploys.
+Vercel, GitHub-connected: every push to `main` deploys; other branches get preview URLs.
+No environment variables are required.
 
 ## Related
 
 - App (testnet): https://testnet.noether.exchange/trade
-- Live API + Swagger: https://noetherapi-production.up.railway.app/docs
 - TypeScript SDK: https://www.npmjs.com/package/noether-sdk
 - Python SDK: https://pypi.org/project/noether-sdk/
 - Main repo: https://github.com/NoetherDEX/noether

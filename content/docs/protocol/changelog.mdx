@@ -1,0 +1,27 @@
+---
+title: "Changelog"
+description: "User-facing changes to the app, the gateway API, the SDKs and the deployed testnet contracts, newest first, with the dates that can be verified."
+---
+
+Internal incidents and operations are not listed here.
+
+## 2026-09
+
+- **2026-09-18** Documentation rebuilt: new site, endpoint reference generated from the gateway's OpenAPI spec, contract addresses and market lists generated from live data.
+- PUMP and UNI perpetuals listed; the market list is now 16 pairs.
+
+## 2026-08
+
+- **2026-08-30** SDKs 0.2.0 on npm and PyPI: pool-capacity headroom and custody blocks on market stats, one-shot resubmit on stale footprints (TypeScript), richer submit-failure payloads (Python). Details on the [TypeScript](/developers/sdk-ts) and [Python](/developers/sdk-py) pages.
+- **2026-08-12** SDKs 0.1.2 on npm and PyPI: gateway parity (stats, candles, ADL queue, volume, shortfall), cursor pagination, error taxonomy, fixed Python key issuance.
+- Referral economics live on-chain: referees get a 4% fee discount, referrers accrue 10% of referee fees and claim in USDC from the referral registry.
+- Funding settles through the liquidity vault: funding you earn is paid by the vault together with profit, and each market's hourly funding rate is capped at 0.05%.
+
+## 2026-07
+
+- **2026-07-21** Production stack redeployed on testnet with fresh contract addresses (see [Contracts and events](/protocol/contracts)). The new market adds partial close and add or remove collateral on isolated positions, an acceptable-price bound on opens and closes, auto-netting of opposite positions, per-market risk parameters (4% initial and 2% maintenance margin at up to 10x), per-market funding, partial and staged liquidation with an insurance buffer, an auto-deleveraging backstop, and a two-tier pause.
+- **2026-07-19** Public testnet app at [testnet.noether.exchange](https://testnet.noether.exchange).
+- **2026-07-16** Gateway: `GET /v1/orders/open` added; `GET /v1/trades` gains `include_opens` and cross-liquidation rows; both SDKs gain `orders.open()`.
+- **2026-07-15** The API gateway moved and its base URL changed to the current one.
+- **2026-07-10** First documentation site.
+- **2026-07-06** Production market list expanded to 14 perpetual pairs.

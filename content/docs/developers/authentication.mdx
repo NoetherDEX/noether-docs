@@ -1,0 +1,272 @@
+---
+title: "Authentication"
+description: "How to turn a Stellar wallet signature into a gateway API key, send it with the required timestamp header, and manage or revoke keys."
+---
+
+The gateway authenticates requests with API keys. You get a key by proving control of a Stellar wallet: request a challenge, sign it with the wallet, and exchange the signed proof for a `keyId` and `secret` pair. This page covers the full flow, the exact request and response shapes, the headers every authenticated call needs, and key management.
+
+Base URL for all examples: `https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io`.
+
+<Callout type="warning" title="Closed beta">
+API key issuance is restricted to allowlisted wallets. If your address is not on the list, `POST /v1/keys` returns `403 not_in_beta`. Public read endpoints work without any key, and keys that were already issued keep working: the gate applies only to issuing new keys. Check your status with `GET /v1/keys/beta-status` (below).
+</Callout>
+
+## What a key looks like
+
+| Item | Format |
+|---|---|
+| `keyId` | `nk_` followed by 24 hex characters (12 random bytes) |
+| `secret` | 64 hex characters (32 random bytes), no prefix |
+| Tier | `standard` for every issued key |
+| `Authorization` header | `Bearer` followed by `keyId` and `secret` joined by a single colon |
+| `X-Timestamp` header | Current unix time in seconds; required on every authenticated request |
+
+The secret is shown once, in the issuance response. The gateway stores only a peppered SHA-256 hash of it, so a lost secret cannot be recovered: revoke the key and mint a new one instead.
+
+## Check beta status
+
+Public, no auth required. Pass your address to see whether you can mint a key:
+
+```bash
+curl -s "https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/keys/beta-status?address=GBTRADER..."
+```
+
+```json
+{ "gated": true, "allowed": false }
+```
+
+- `gated` is `true` when an allowlist is configured (it is, on the current deployment).
+- `allowed` is `true` when issuance is open to everyone or when the supplied address is on the list. Without an `address` parameter, `allowed` is `false` whenever the gate is on.
+
+## Getting a key
+
+<Diagram name="api-key-handshake" caption="Your key never leaves your wallet: the gateway only ever sees a signed envelope and then the bearer key it issued." />
+
+<Steps>
+
+### Request a challenge
+
+`POST /v1/keys/challenge` with your Stellar public key (the 56-character `G...` address):
+
+```bash
+curl -s -X POST https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/keys/challenge \
+  -H "content-type: application/json" \
+  -d '{"address":"GBTRADER..."}'
+```
+
+```json
+{ "challengeHex": "e1e7d001291a9253c8052fe6dda16e64d4b890b092044d56bcf0430d81366bc3", "expiresAt": 1789683629127 }
+```
+
+The challenge is 32 random bytes, hex-encoded (64 characters). `expiresAt` is a millisecond epoch. Rules to know:
+
+- **Five-minute TTL.** Sign and exchange it before it expires.
+- **Single use.** Any verification attempt consumes it, including a failed one. If verification fails, request a fresh challenge.
+- **One per address.** Requesting a new challenge replaces any pending one for that address.
+- Challenges are held in gateway memory, so an outstanding challenge is also voided by a gateway restart. If the exchange fails unexpectedly, start over.
+
+### Sign the challenge
+
+You prove ownership by signing a placeholder Stellar transaction that embeds the challenge bytes. The transaction is a signing envelope only: it uses a throwaway source account with sequence 0 and fee 0, and it is never submitted to the network. Because the gateway verifies a signature over the transaction hash, this works with any wallet that can sign a transaction envelope; no `signMessage` support is needed.
+
+The TypeScript and Python SDKs build and sign this envelope for you. If you are doing it by hand with a raw keypair:
+
+```ts
+// sign-challenge.ts: build and sign the placeholder transaction
+import {
+  Account, Keypair, Operation, TransactionBuilder,
+} from '@stellar/stellar-sdk';
+
+const NETWORK_PASSPHRASE = 'Test SDF Network ; September 2015';
+
+function signChallenge(challengeHex: string, keypair: Keypair): string {
+  const placeholder = Keypair.random().publicKey(); // dummy source account
+  const account = new Account(placeholder, '0');    // sequence 0
+  const tx = new TransactionBuilder(account, {
+    fee: '0',
+    networkPassphrase: NETWORK_PASSPHRASE,
+  })
+    .addOperation(Operation.manageData({
+      name: 'noether-api auth',
+      value: Buffer.from(challengeHex, 'hex'),      // the 32 challenge bytes
+      source: keypair.publicKey(),                  // your address
+    }))
+    .setTimeout(0)
+    .build();
+  tx.sign(keypair);
+  return tx.toXDR(); // base64 signed-transaction XDR
+}
+```
+
+What the gateway checks on the other side: the envelope must be a plain (non-fee-bump) transaction whose first operation is `manageData` with a value equal to the issued challenge bytes, and at least one attached signature must verify against the transaction hash for the address you claim. The operation name is not checked, only the value bytes.
+
+### Exchange it for a key
+
+`POST /v1/keys` with your address, the challenge hex and the signed XDR. The field is named `signature` but carries the full base64 signed-transaction XDR, not a detached signature:
+
+```bash
+curl -s -X POST https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/keys \
+  -H "content-type: application/json" \
+  -d '{
+    "address": "GBTRADER...",
+    "challenge": "e1e7d001...the challengeHex...",
+    "signature": "AAAAAgAAA...base64-signed-tx-XDR...",
+    "label": "trading-bot"
+  }'
+```
+
+`label` is optional, at most 64 characters. On success you get `201`:
+
+```json
+{
+  "keyId": "nk_3f9a1c0b8d2e4f6a7b8c9d0e",
+  "secret": "64-hex-char-secret...",
+  "tier": "standard",
+  "owner": "GBTRADER...",
+  "createdAt": 1789683600000
+}
+```
+
+Save the `secret` now: this response is the only time it is shown.
+
+Failure cases, in the order the gateway checks them:
+
+| HTTP | Body | Meaning |
+|---|---|---|
+| 403 | `{"error":"not_in_beta","message":"API key issuance is currently restricted to early-access wallets. Join the waitlist at noether.exchange to request access."}` | Address not on the beta allowlist (checked before signature verification) |
+| 401 | `{"error":"invalid_signature"}` | Bad, expired or reused challenge; wrong signature; fee-bump envelope; wrong first operation |
+| 409 | `{"error":"key_limit_reached","message":"..."}` | The wallet already holds the maximum number of active keys; the message states the count and the limit. Revoke an unused key first |
+
+### Use the key
+
+Send both parts in one `Authorization` header, joined by a colon, plus the current unix time in `X-Timestamp`:
+
+```bash
+curl -s https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/account/me \
+  -H "Authorization: Bearer nk_3f9a1c0b8d2e4f6a7b8c9d0e:64-hex-char-secret..." \
+  -H "X-Timestamp: $(date +%s)"
+```
+
+```json
+{ "owner": "GBTRADER...", "tier": "standard", "keyId": "nk_3f9a1c0b8d2e4f6a7b8c9d0e" }
+```
+
+The same pair also logs you in on the WebSocket via the in-band `login` op, which needs no timestamp. See [WebSocket API](/developers/websocket).
+
+</Steps>
+
+### The `X-Timestamp` header
+
+`X-Timestamp` is required replay protection on every authenticated REST request. The value must be the current unix time in seconds, within 30 seconds either side of the gateway's clock. A missing header fails with `401 missing_timestamp` and a value outside the window fails with `401 stale_timestamp`, both before the key itself is checked. The official SDKs send the header on every authenticated call.
+
+### Authentication errors
+
+All auth failures are `401` with a small JSON body:
+
+| Condition | Body |
+|---|---|
+| Missing or non-Bearer `Authorization` header | `{"error":"missing_bearer"}` |
+| Bearer value has no colon separator | `{"error":"malformed_bearer","hint":"use Bearer <keyId>:<secret>"}` |
+| `X-Timestamp` header absent | `{"error":"missing_timestamp"}` |
+| `X-Timestamp` off by more than 30 seconds | `{"error":"stale_timestamp"}` |
+| Unknown key, wrong secret or revoked key | `{"error":"invalid_credentials"}` |
+
+Authenticated requests are rate-limited per owning wallet at 600 requests per minute (`standard` tier), versus 60 requests per minute per IP without a key. The bearer key is resolved before the rate limiter runs, so attaching your key even to public endpoints moves you to the higher bucket. On breach you get `429` with a `Retry-After` header and body `{"error":"rate_limited","retry_after_sec":12}`.
+
+## Managing keys
+
+### List your keys
+
+`GET /v1/keys` (requires auth) returns every key with the same owner as the authenticated key, newest first, including revoked ones:
+
+```bash
+curl -s https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/keys \
+  -H "Authorization: Bearer nk_3f9a1c0b8d2e4f6a7b8c9d0e:64-hex-char-secret..." \
+  -H "X-Timestamp: $(date +%s)"
+```
+
+```json
+{
+  "keys": [
+    {
+      "keyId": "nk_3f9a1c0b8d2e4f6a7b8c9d0e",
+      "owner": "GBTRADER...",
+      "tier": "standard",
+      "label": "trading-bot",
+      "createdAt": 1789683600000,
+      "lastUsedAt": 1789683900000,
+      "revokedAt": null
+    }
+  ]
+}
+```
+
+Timestamps are millisecond epochs; `label`, `lastUsedAt` and `revokedAt` may be `null`. `lastUsedAt` updates on every successful authentication. Secrets are never included.
+
+### Revoke a key
+
+`DELETE /v1/keys/{keyId}` (requires auth). Any of your keys can revoke any key belonging to the same owner, including itself:
+
+```bash
+curl -s -X DELETE https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/keys/nk_3f9a1c0b8d2e4f6a7b8c9d0e \
+  -H "Authorization: Bearer nk_othervalidkey000000000000:64-hex-char-secret..." \
+  -H "X-Timestamp: $(date +%s)"
+```
+
+```json
+{ "revoked": true }
+```
+
+Revocation takes effect immediately: the revoked key fails auth on its next request. If the key does not exist, belongs to a different owner, or is already revoked, you get `404` with `{"error":"key_not_found"}`.
+
+## Let an SDK do it
+
+Both SDKs wrap the whole flow in one call: `client.issueKey(...)` (or `client.keys.create(...)`) in the [TypeScript SDK](/developers/sdk-ts) and `await client.keys.create(...)` in the [Python SDK](/developers/sdk-py). You pass your address and a signer function; the SDK fetches the challenge, builds the placeholder transaction, has your signer sign its hash, and exchanges the result for a key. The closed-beta gate applies the same way.
+
+## Complete copy-paste flow
+
+End to end with `curl` plus a small Node script for the signing step:
+
+```bash
+BASE=https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io
+ADDRESS=GBTRADER...   # your Stellar public key
+
+# 1. Check the beta gate
+curl -s "$BASE/v1/keys/beta-status?address=$ADDRESS"
+
+# 2. Request a challenge (valid five minutes, single use)
+CHALLENGE=$(curl -s -X POST "$BASE/v1/keys/challenge" \
+  -H "content-type: application/json" \
+  -d "{\"address\":\"$ADDRESS\"}" | node -pe 'JSON.parse(require("fs").readFileSync(0)).challengeHex')
+
+# 3. Sign it (a script wrapping the signChallenge function above with your keypair)
+SIGNED_XDR=$(npx tsx sign-challenge.ts "$CHALLENGE")
+
+# 4. Exchange it for a key; the secret in this response is shown once
+curl -s -X POST "$BASE/v1/keys" \
+  -H "content-type: application/json" \
+  -d "{\"address\":\"$ADDRESS\",\"challenge\":\"$CHALLENGE\",\"signature\":\"$SIGNED_XDR\",\"label\":\"my-bot\"}"
+
+# 5. Use it (substitute the keyId and secret from step 4)
+curl -s "$BASE/v1/account/me" \
+  -H "Authorization: Bearer nk_yourkeyid:yoursecret" \
+  -H "X-Timestamp: $(date +%s)"
+```
+
+## Endpoint summary
+
+| Endpoint | Auth | Purpose |
+|---|---|---|
+| `GET /v1/keys/beta-status` | public | Report the `gated` and `allowed` state, optionally for a specific address |
+| `POST /v1/keys/challenge` | public | Issue a 32-byte signing challenge (five-minute TTL, single use) |
+| `POST /v1/keys` | public, allowlist-gated | Exchange a signed challenge for a `keyId` and `secret` |
+| `GET /v1/keys` | bearer key | List all keys of the same owner (secrets never returned) |
+| `DELETE /v1/keys/{keyId}` | bearer key | Revoke a key of the same owner (effective immediately) |
+
+## Next steps
+
+- [REST API](/developers/rest-api): every endpoint, including the prepare, sign, submit trading flow
+- [WebSocket API](/developers/websocket): the `login` op uses this same key pair for private channels
+- [TypeScript SDK](/developers/sdk-ts) and [Python SDK](/developers/sdk-py): handle the challenge flow and send `X-Timestamp` for you
+- [Generated reference](/developers/reference): try endpoints interactively
+- [Errors](/developers/errors): the full error taxonomy
