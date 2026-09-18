@@ -14,6 +14,9 @@ export async function GET(_req: Request, { params }: RouteContext<'/og/docs/[...
     title: page.data.title,
     description: page.data.description,
     site: appName,
+    // Brand gold on the app's dark base (the generator's default is purple).
+    primaryColor: 'hsl(45 93% 47%)',
+    primaryTextColor: 'hsl(45 93% 47%)',
   });
 }
 

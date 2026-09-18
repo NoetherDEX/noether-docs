@@ -6,8 +6,9 @@
 /* ── Noether quiet-terminal system (web/app/globals.css), dark only ──
    Layered dark neutrals; elevation = surface steps + hairline borders, never
    shadows or glow. Gold is for actions, active state, brand marks and
-   eyebrows only. */
-@theme {
+   eyebrows only. `static`: Tailwind v4 otherwise drops theme tokens that no
+   utility class references, and plain CSS below relies on them. */
+@theme static {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
   --font-heading: var(--font-sora), ui-sans-serif, system-ui, sans-serif;
@@ -116,7 +117,7 @@ td {
 /* Focus: brand gold, 10.3:1 on the base background. Fumadocs colours its
    outline in currentColor; the app uses one colour everywhere. */
 :focus-visible {
-  outline: 2px solid var(--color-gold) !important;
+  outline: 2px solid var(--color-fd-primary) !important;
   outline-offset: 2px;
 }
 
@@ -250,4 +251,19 @@ td {
     letter-spacing: -0.01em;
     font-variant-numeric: tabular-nums;
   }
+}
+
+/* ── Content components in the app idiom ── */
+/* Table headers as quiet mono eyebrows, like the app's data tables. */
+.prose th {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-fd-muted-foreground);
+}
+.prose td code,
+.prose th code {
+  font-size: 12px;
 }
