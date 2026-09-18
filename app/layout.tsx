@@ -24,6 +24,9 @@ export default function Layout({ children }: { children: ReactNode }) {
     // Dark only, like the app. Theme switching is disabled in RootProvider.
     <html lang="en" className={`dark ${inter.variable} ${sora.variable} ${mono.variable}`} suppressHydrationWarning>
       <body className="flex flex-col min-h-screen">
+        <a href="#main-content" className="noe-skip">
+          Skip to content
+        </a>
         <RootProvider theme={{ enabled: false }}>{children}</RootProvider>
       </body>
     </html>

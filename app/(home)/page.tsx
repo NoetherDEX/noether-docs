@@ -28,8 +28,15 @@ const audiences = [
 ];
 
 const glance = [
-  { label: 'Markets', value: String(markets.count), note: 'perpetual pairs on testnet' },
-  { label: 'Max leverage', value: '10×', note: '25× planned for mainnet' },
+  {
+    label: 'Markets',
+    value: String(markets.openCount),
+    note:
+      markets.openCount === markets.count
+        ? 'perpetual pairs on testnet'
+        : `open for trading · ${markets.count} listed`,
+  },
+  { label: 'Max leverage', value: '10×', note: 'every pair on testnet · contract ceiling 25×' },
   { label: 'Maker / taker', value: '0.020% / 0.050%', note: 'tier 0, falls with volume' },
   { label: 'Min collateral', value: '10 USDC', note: 'per position' },
   { label: 'Max position', value: '$100,000', note: 'notional' },
@@ -47,10 +54,10 @@ const popular = [
 
 export default function HomePage() {
   return (
-    <main className="mx-auto w-full max-w-[1120px] px-4 pb-20 pt-10 sm:px-6 sm:pt-14">
+    <div className="mx-auto w-full max-w-[1120px] px-4 pb-20 pt-10 sm:px-6 sm:pt-14">
       <section className="border-b border-fd-border pb-10">
         <p className="noe-eyebrow">Documentation · Stellar testnet</p>
-        <h1 className="mt-4 max-w-[18ch] text-3xl font-medium leading-tight sm:text-[40px]">
+        <h1 id="main-content" tabIndex={-1} className="mt-4 max-w-[18ch] text-3xl font-medium leading-tight sm:text-[40px]">
           Perpetual futures on Stellar, fully on-chain.
         </h1>
         <p className="mt-4 max-w-[58ch] text-base text-fd-muted-foreground">
@@ -65,7 +72,8 @@ export default function HomePage() {
             Build on the API
           </Link>
           <a href={site.appTrade} className="text-sm text-fd-muted-foreground underline-offset-4 hover:underline" target="_blank" rel="noreferrer">
-            Open the app ↗
+            Open the app <span aria-hidden="true">↗</span>
+            <span className="sr-only"> (opens in a new tab)</span>
           </a>
         </div>
         <div className="mt-8 max-w-[520px]">
@@ -79,7 +87,9 @@ export default function HomePage() {
             <p className="noe-eyebrow">{a.eyebrow}</p>
             <h2 className="mt-3 text-lg font-medium">{a.title}</h2>
             <p className="mt-2 text-sm text-fd-muted-foreground">{a.body}</p>
-            <p className="mt-5 text-sm font-medium text-fd-primary">{a.cta} →</p>
+            <p className="mt-5 text-sm font-medium text-fd-primary">
+              {a.cta} <span aria-hidden="true">→</span>
+            </p>
           </Link>
         ))}
       </section>
@@ -114,16 +124,16 @@ export default function HomePage() {
         <div>
           <p className="noe-eyebrow">Links</p>
           <ul className="mt-4 space-y-2 text-sm">
-            <li><a className="hover:text-fd-primary" href={site.appTrade} target="_blank" rel="noreferrer">Web app (testnet) ↗</a></li>
-            <li><a className="hover:text-fd-primary" href={`${site.gateway}/docs`} target="_blank" rel="noreferrer">Gateway Swagger UI ↗</a></li>
-            <li><a className="hover:text-fd-primary" href={site.npm} target="_blank" rel="noreferrer">noether-sdk on npm ↗</a></li>
-            <li><a className="hover:text-fd-primary" href={site.pypi} target="_blank" rel="noreferrer">noether-sdk on PyPI ↗</a></li>
-            <li><a className="hover:text-fd-primary" href={site.github} target="_blank" rel="noreferrer">GitHub ↗</a></li>
-            <li><a className="hover:text-fd-primary" href={site.x} target="_blank" rel="noreferrer">@Noetherdex on X ↗</a></li>
+            <li><a className="hover:text-fd-primary" href={site.appTrade} target="_blank" rel="noreferrer">Web app (testnet) <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span></a></li>
+            <li><a className="hover:text-fd-primary" href={`${site.gateway}/docs`} target="_blank" rel="noreferrer">Gateway Swagger UI <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span></a></li>
+            <li><a className="hover:text-fd-primary" href={site.npm} target="_blank" rel="noreferrer">noether-sdk on npm <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span></a></li>
+            <li><a className="hover:text-fd-primary" href={site.pypi} target="_blank" rel="noreferrer">noether-sdk on PyPI <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span></a></li>
+            <li><a className="hover:text-fd-primary" href={site.github} target="_blank" rel="noreferrer">GitHub <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span></a></li>
+            <li><a className="hover:text-fd-primary" href={site.x} target="_blank" rel="noreferrer">@Noetherdex on X <span aria-hidden="true">↗</span><span className="sr-only"> (opens in a new tab)</span></a></li>
             <li><Link className="hover:text-fd-primary" href="/llms.txt">llms.txt</Link></li>
           </ul>
         </div>
       </section>
-    </main>
+    </div>
   );
 }

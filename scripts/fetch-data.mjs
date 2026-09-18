@@ -33,10 +33,19 @@ if (repo?.contracts) {
 }
 
 const marketsRes = await json(`${GATEWAY}/v1/markets`);
+// A pair is open for new positions only when the market holds a risk config
+// for it; the gateway surfaces that as capacity.maxPositionSize (null = none,
+// so the market rejects opens with #88 AssetRiskNotConfigured). A missing
+// capacity block means the gateway could not read the chain: status unknown.
+const stats = await json(`${GATEWAY}/v1/markets/stats`).catch(() => null);
+const capacityOf = new Map((stats?.stats ?? []).map((r) => [r.asset, r.capacity]));
 const markets = (marketsRes.markets ?? marketsRes).map((m) => {
   const a = typeof m.asset === 'object' ? m.asset : { symbol: m.asset, name: m.name, decimals: m.decimals };
-  return { symbol: a.symbol, name: a.name, decimals: a.decimals };
+  const cap = capacityOf.get(a.symbol);
+  const status = !cap ? 'unknown' : cap.maxPositionSize ? 'open' : 'not-open';
+  return { symbol: a.symbol, name: a.name, decimals: a.decimals, status };
 });
+const openCount = markets.filter((m) => m.status === 'open').length;
 
 const fetchedAt = new Date().toISOString();
 await mkdir('data', { recursive: true });
@@ -56,5 +65,5 @@ await writeFile(
     2,
   ) + '\n',
 );
-await writeFile('data/markets.json', JSON.stringify({ fetchedAt, count: markets.length, markets }, null, 2) + '\n');
-console.log(`contracts: ${Object.keys(contracts).length} addresses | markets: ${markets.length}`);
+await writeFile('data/markets.json', JSON.stringify({ fetchedAt, count: markets.length, openCount, markets }, null, 2) + '\n');
+console.log(`contracts: ${Object.keys(contracts).length} addresses | markets: ${markets.length} listed, ${openCount} open`);

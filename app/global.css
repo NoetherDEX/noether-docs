@@ -103,11 +103,15 @@ td {
   font-variant-numeric: tabular-nums;
 }
 
-/* Reading measure for prose; tables and code keep the column. */
+/* Reading measure for prose (~72 characters of Inter at 16px); tables, code
+   and callouts keep the full column. */
+:root {
+  --noe-measure: 36rem;
+}
 .prose > :is(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6),
-.prose :is(.fd-steps) > :is(p, ul, ol, h3),
-.prose li {
-  max-width: 44rem;
+.prose .fd-steps > :is(p, ul, ol, h3),
+.prose .fd-step > :is(p, ul, ol, h3) {
+  max-width: var(--noe-measure);
 }
 .prose p,
 .prose li {
@@ -158,6 +162,24 @@ td {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Skip link: first focusable element, visible only on keyboard focus. */
+.noe-skip {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 100;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--color-fd-primary);
+  color: var(--color-fd-primary-foreground);
+  font-size: 13px;
+  font-weight: 600;
+  transform: translateY(-200%);
+}
+.noe-skip:focus-visible {
+  transform: none;
 }
 
 /* ── Shared primitives (mirroring the app's Badge / eyebrow / CTA) ── */

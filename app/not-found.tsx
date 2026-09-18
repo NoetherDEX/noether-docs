@@ -8,7 +8,7 @@ export default function NotFound() {
         <Wordmark />
       </Link>
       <p className="noe-eyebrow mt-10">404 · Page not found</p>
-      <h1 className="mt-3 text-2xl font-medium">This page does not exist.</h1>
+      <h1 id="main-content" tabIndex={-1} className="mt-3 text-2xl font-medium">This page does not exist.</h1>
       <p className="mt-3 max-w-[52ch] text-fd-muted-foreground">
         The docs moved to a new structure in September 2026, but every old address still resolves. If a link
         brought you here, it was probably typed by hand.
