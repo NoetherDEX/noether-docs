@@ -1,3 +1,4 @@
+import { ScrollTable } from '@/components/scroll-table';
 import snapshot from '@/data/contracts.json';
 
 const ROLES: Record<string, { name: string; role: string }> = {
@@ -19,7 +20,7 @@ export function contractAddress(key: keyof typeof snapshot.contracts): string {
 export function ContractsTable() {
   const rows = Object.entries(snapshot.contracts);
   return (
-    <table>
+    <ScrollTable label="Contract, Role, Address">
       <thead>
         <tr>
           <th>Contract</th>
@@ -48,7 +49,7 @@ export function ContractsTable() {
           );
         })}
       </tbody>
-    </table>
+    </ScrollTable>
   );
 }
 

@@ -11,6 +11,7 @@ import {
 import { notFound } from 'next/navigation';
 import { getMDXComponents } from '@/components/mdx';
 import { OpenAPIPage } from '@/components/api-page';
+import { TocLandmark } from '@/components/toc-landmark';
 import type { Metadata } from 'next';
 import { createRelativeLink } from 'fumadocs-ui/mdx';
 import { getPageImageUrl, getPageMarkdownUrl, gitConfig } from '@/lib/shared';
@@ -27,6 +28,7 @@ export default async function Page(props: Props) {
 
   return (
     <DocsPage toc={page.data.toc} full={page.data.full}>
+      <TocLandmark />
       <DocsTitle id="main-content" tabIndex={-1}>
         {page.data.title}
       </DocsTitle>

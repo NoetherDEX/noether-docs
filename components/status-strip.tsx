@@ -29,8 +29,9 @@ export function StatusStrip({ compact = false }: { compact?: boolean }) {
       <div className="noe-strip noe-strip-compact" role="status" aria-live="polite">
         <span className="noe-pill noe-pill-gold">Testnet</span>
         <span className="truncate text-fd-muted-foreground">Funds are not real</span>
-        <span className="ms-auto inline-flex shrink-0 items-center" title={label} aria-label={label}>
+        <span className="ms-auto inline-flex shrink-0 items-center" title={label}>
           <span className={`inline-block size-1.5 rounded-full ${dot}`} aria-hidden="true" />
+          <span className="sr-only">{label}</span>
         </span>
       </div>
     );

@@ -101,7 +101,7 @@ export default function HomePage() {
             <div key={g.label} className="noe-stat">
               <p className="text-[11px] uppercase tracking-[0.12em] text-fd-muted-foreground">{g.label}</p>
               <p className="noe-stat-value mt-2">{g.value}</p>
-              <p className="mt-1 text-xs text-faint">{g.note}</p>
+              <p className="mt-1 text-xs text-fd-muted-foreground">{g.note}</p>
             </div>
           ))}
         </div>

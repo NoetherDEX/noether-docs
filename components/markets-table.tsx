@@ -1,3 +1,4 @@
+import { ScrollTable } from '@/components/scroll-table';
 import snapshot from '@/data/markets.json';
 
 export const marketCount = snapshot.count;
@@ -9,7 +10,7 @@ export function MarketsTable() {
   const notOpen = snapshot.markets.filter((m) => m.status === 'not-open');
   return (
     <>
-      <table>
+      <ScrollTable label="Pair, Asset, Symbol, Status">
         <thead>
           <tr>
             <th>Pair</th>
@@ -28,7 +29,7 @@ export function MarketsTable() {
             </tr>
           ))}
         </tbody>
-      </table>
+      </ScrollTable>
       {notOpen.length > 0 ? (
         <p className="text-sm text-fd-muted-foreground">
           {notOpen.map((m) => m.symbol).join(' and ')} {notOpen.length === 1 ? 'is' : 'are'} listed by the gateway, but
