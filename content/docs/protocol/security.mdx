@@ -1,30 +1,39 @@
 ---
-title: Security and audits
-description: Where Noether stands on audits, how to report a vulnerability, and what is in scope. Testnet today; the policy takes full effect for real value at mainnet.
+title: "Security and audits"
+description: "Audit status, how to report a vulnerability, what is in and out of scope, and the interim reward policy from the repository's SECURITY.md."
 ---
 
 ## Status
 
-Noether runs on Stellar **testnet** with test funds only. The contracts have not yet been through an external audit; one is being arranged through the Stellar ecosystem's audit programme ahead of mainnet, and the report will be linked from this page when it is published.
+Noether runs on Stellar testnet with test funds only. The contracts have not yet been through an external audit; one is being arranged ahead of mainnet, and the report will be linked from this page when it is published.
 
-Every contract is open source in the [main repository](https://github.com/NoetherDEX/noether), and every deployed address on the [contracts page](/protocol/contracts) can be checked against that source on a block explorer.
+Every contract is open source in the [main repository](https://github.com/NoetherDEX/noether), and every deployed address on the [contracts page](/protocol/contracts) can be checked against that source on a block explorer. For incident response, the contracts carry admin pause controls (the market's in two tiers, halt-open and full-freeze, so traders can always close) and in-place upgrade paths that preserve positions, orders and balances.
 
 ## Reporting a vulnerability
 
 Do not open a public issue for a security bug. Email **security@noether.exchange** (or message [@Noetherdex](https://x.com/Noetherdex)) with:
 
 - a description and impact assessment,
-- reproduction steps or a proof of concept (a testnet PoC is ideal),
+- reproduction steps or a proof of concept (a testnet PoC is ideal; never test against mainnet with real funds),
 - the affected contract or service, with the commit or address.
 
-Reports are acknowledged within 72 hours and triaged within five business days. Please allow a reasonable window for remediation before public disclosure. For an exploit in progress, also contact the [SEAL 911](https://www.seal911.org) whitehat hotline.
+Reports are acknowledged within 72 hours and triaged within five business days. Please allow a reasonable window for remediation before any public disclosure. For an exploit in progress, also contact the [SEAL 911](https://www.seal911.org) whitehat hotline.
 
 ## Scope
 
 In scope: the on-chain contracts (`market`, `vault`, `vault_factory`, `referral`, `noether_router`, `noeracle_shim`, `noether_common`), the API gateway, the indexer, the keeper, and the web app's transaction-construction path. The Noeracle oracle is a related project; oracle write-path issues are in scope and gate mainnet.
 
-Out of scope: findings that require a compromised device or wallet, social engineering, denial of service against the public testnet RPC, and anything already listed as a known issue in the repository's audit notes.
+Out of scope: findings that require a compromised user device or wallet, social engineering, spam or denial of service against the public testnet RPC, and anything already listed as a known issue in the repository's audit notes.
 
 ## Rewards
 
-Until Noether lists on a bug-bounty platform at meaningful value locked, rewards are discretionary and scaled to severity and real impact. The full policy is the repository's [SECURITY.md](https://github.com/NoetherDEX/noether/blob/main/SECURITY.md).
+Until Noether lists on a bug-bounty platform at meaningful value locked, rewards are discretionary and scaled to severity and real impact:
+
+| Severity | Example | Reward |
+|---|---|---|
+| Critical | Direct theft, vault drain, oracle forgery leading to loss of funds | Up to 10% of funds at risk, capped at $10,000 to $25,000 |
+| High | Forced insolvency, bad-debt injection, auth bypass | $2,000 to $5,000 |
+| Medium | Griefing, denial of service against liquidations, incorrect accounting | $500 to $2,000 |
+| Low | Information leak, minor misconfiguration | Swag or acknowledgement |
+
+Good-faith research under this policy will not be pursued legally. The first reporter of a unique, reproducible issue is eligible. Fixed critical findings are published after remediation with credit (opt-out available). The full policy is the repository's [SECURITY.md](https://github.com/NoetherDEX/noether/blob/main/SECURITY.md).

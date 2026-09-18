@@ -1,39 +1,29 @@
 ---
-title: "Contract addresses & events"
-description: "This page is the on-chain reference for Noether: every deployed contract address on the live stack, the network configuration to reach them, and the complete list of…"
+title: "Contracts and events"
+description: "Live-generated addresses for the testnet deployment, how to verify what the gateway serves, and every event the contracts emit."
 ---
 
-This page is the on-chain reference for Noether: every deployed contract address on the live stack, the network configuration to reach them, and the complete list of events each contract emits — with exact field order, so indexers and integrations can decode them without guesswork.
-
-<Callout type="warning">
-Noether runs on the Stellar **testnet**. Addresses change whenever contracts are redeployed or the Stellar testnet resets. Don't hardcode them — verify against the gateway's health endpoint (below) before relying on any address.
-</Callout>
+This page is the on-chain reference for Noether: every deployed contract address on the live stack, how to confirm what a running gateway is pointed at, and the complete list of events each contract emits with exact field order, so indexers and integrations can decode them without guesswork.
 
 ## Deployed contracts (Stellar testnet)
 
-The production stack — what https://testnet.noether.exchange and the gateway at `https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io` serve — deployed 2026-07-06:
+The production stack, which [testnet.noether.exchange](https://testnet.noether.exchange) and the gateway at `https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io` serve:
 
-| Contract | Address | Explorer |
-|---|---|---|
-| Market (trading engine) | `CAE3U7JKESRWZHPEQ72DVNGOQ6WPA7HSPQZL5YV46NPCE4TMUPAGYMEC` | [stellar.expert](https://stellar.expert/explorer/testnet/contract/CAE3U7JKESRWZHPEQ72DVNGOQ6WPA7HSPQZL5YV46NPCE4TMUPAGYMEC) |
-| Liquidity Vault (LP pool) | `CBLVZZ557ALB342GBQIMC2E3IYXJ5AEL7XSVMPX36CVLKRDQGDH22UL6` | [stellar.expert](https://stellar.expert/explorer/testnet/contract/CBLVZZ557ALB342GBQIMC2E3IYXJ5AEL7XSVMPX36CVLKRDQGDH22UL6) |
-| Noeracle Shim (SEP-40 price reader) | `CBY4YLPYEN5GMV4JMVZGCSU433SO5JTEGCS66GIT3EZOUG2CN2TWT6UK` | [stellar.expert](https://stellar.expert/explorer/testnet/contract/CBY4YLPYEN5GMV4JMVZGCSU433SO5JTEGCS66GIT3EZOUG2CN2TWT6UK) |
-| Noether Router (verify-then-trade) | `CDH4CY3XMUZ7H73LC3WJYR3AG56U4MTIBMR2WHNORXDTWLLBOQII44S4` | [stellar.expert](https://stellar.expert/explorer/testnet/contract/CDH4CY3XMUZ7H73LC3WJYR3AG56U4MTIBMR2WHNORXDTWLLBOQII44S4) |
-| Noeracle (signed price source) | `CAYIP67UDVX5UPXGN3XDAWVIEFBAVG6G7LUESEOU3NUQKTWN55W34YBG` | [stellar.expert](https://stellar.expert/explorer/testnet/contract/CAYIP67UDVX5UPXGN3XDAWVIEFBAVG6G7LUESEOU3NUQKTWN55W34YBG) |
-| Vault Factory (Trader Vaults) | `CAZPVI2PLDQJGDDGULG7FSVNYO3B7BTWTTK5OWVH5SSWN7SJ4ZCBTVP5` | [stellar.expert](https://stellar.expert/explorer/testnet/contract/CAZPVI2PLDQJGDDGULG7FSVNYO3B7BTWTTK5OWVH5SSWN7SJ4ZCBTVP5) |
-| Referral | `CCV5NWLGQTCRFFOTHJDQVFOOLAEUPQTWMPTNNHR2EU64BULV77W5GXEE` | [stellar.expert](https://stellar.expert/explorer/testnet/contract/CCV5NWLGQTCRFFOTHJDQVFOOLAEUPQTWMPTNNHR2EU64BULV77W5GXEE) |
-| USDC token (test asset, SAC) | `CA63EPM4EEXUVUANF6FQUJEJ37RWRYIXCARWFXYUMPP7RLZWFNLTVNR4` | [stellar.expert](https://stellar.expert/explorer/testnet/contract/CA63EPM4EEXUVUANF6FQUJEJ37RWRYIXCARWFXYUMPP7RLZWFNLTVNR4) |
-| NOE token (LP token, SAC) | `CD7VRBXIDYP2C2F2AZZL242GY4PRDVDH2BG3LAN2ASXYUXCPHWQJTDP5` | [stellar.expert](https://stellar.expert/explorer/testnet/contract/CD7VRBXIDYP2C2F2AZZL242GY4PRDVDH2BG3LAN2ASXYUXCPHWQJTDP5) |
+<ContractsTable />
+
+<ContractsMeta />
 
 Notes:
 
-- **NOE** is a SAC-wrapped classic Stellar asset — code `NOE`, issuer `GCKIUOTK3NWD33ONH7TQERCSLECXLWQMA377HSJR4E2MV7KPQFAQLOLN` (the admin account). It is pre-minted to the Liquidity Vault and moved by transfer; there is no runtime minting.
-- Noeracle is the external signed-price source; the market reads prices through the shim, and the router relays signed attestations into Noeracle at trade time. See [Oracle](/protocol/oracle) for the full price chain.
+- **NOE** is a classic Stellar asset, code `NOE`, issued by `GA7PCANKNREYVUMU6CCOPJHVE5XCRUCFLZ6CGS3GX4BNDBR63QAVLVUZ`, wrapped as a Stellar Asset Contract (the NOE address above). It is pre-minted to the liquidity vault and moved by transfer; there is no runtime minting.
+- **USDC** is a test asset issued for Noether, also wrapped as a Stellar Asset Contract. It has no real-world value.
+- **Noeracle** is the external signed-price source. The market reads prices through the shim, and the router relays signed attestations into Noeracle at trade time. See [Oracle and price feeds](/protocol/oracle).
+- Addresses change whenever contracts are redeployed or the Stellar testnet resets. Do not hardcode them; read them from `GET /v1/health` at startup.
 - All amounts and prices on-chain use 7-decimal fixed point: raw `10_000_000` = 1.0.
 
 ### Verify what a deployment actually serves
 
-The gateway echoes the exact contract addresses it resolved at boot from `GET /v1/health` — this is the ground truth for what the live API is pointed at:
+The gateway echoes the contract addresses it resolved at boot from `GET /v1/health`. This is the ground truth for what the live API is pointed at:
 
 ```bash
 curl -s https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/health
@@ -44,108 +34,140 @@ curl -s https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontain
   "status": "ok",
   "network": "testnet",
   "contracts": {
-    "market":        { "address": "CAE3U7JK…YMEC", "source": "manifest" },
-    "vault":         { "address": "CBLVZZ55…2UL6", "source": "manifest" },
-    "noeracleShim":  { "address": "CBY4YLPY…T6UK", "source": "manifest" },
-    "noetherRouter": { "address": "CDH4CY3X…44S4", "source": "manifest" },
-    "usdcToken":     { "address": "CA63EPM4…VNR4", "source": "manifest" },
-    "noeToken":      { "address": "CD7VRBXI…TDP5", "source": "manifest" },
-    "vaultFactory":  { "address": "CAZPVI2P…TVP5", "source": "manifest" },
-    "referral":      { "address": "CCV5NWLG…GXEE", "source": "manifest" }
-  }
+    "market":        { "address": "CBHHWFAY...KYKNN", "source": "env" },
+    "vault":         { "address": "CBSWA5P7...ZBSYE", "source": "env" },
+    "noeracleShim":  { "address": "CDRQJDCZ...SWU6N", "source": "env" },
+    "noetherRouter": { "address": "CBDVQKYE...T44LG", "source": "env" },
+    "usdcToken":     { "address": "CA63EPM4...TVNR4", "source": "manifest" },
+    "noeToken":      { "address": "CADEAZ3T...BQ4H5", "source": "env" },
+    "vaultFactory":  { "address": "CAG5E6IM...NQKT7", "source": "env" },
+    "referral":      { "address": "CB4A2OHP...2REND", "source": "env" }
+  },
+  "indexer": { "lastLedger": 4731934, "ledgerAgeSeconds": 6 },
+  "market": { "pauseState": { "mode": 0 } },
+  "counts": { "chainOpenPositions": 47, "indexedOpenPositions": 47, "drift": false }
 }
 ```
 
 Addresses are abbreviated here; the live response returns them in full. Each entry carries a `source` field telling you whether the address came from the deployment manifest or an environment override. See [System endpoints](/developers/rest-api/system) for the full health response shape.
 
+The contracts themselves agree on the wiring: the router's `get_market` and `get_noeracle`, the shim's `get_noeracle`, the vault's `get_market_contract`, the vault factory's `get_market` and the referral registry's `get_market` all return the addresses above. You can call any view function as a read-only simulation with the Stellar CLI, for example `stellar contract invoke --id <MARKET> --network testnet --source-account <ANY_FUNDED_ACCOUNT> -- get_asset_risk --asset BTC`; append `-- --help` instead of a function name to list a contract's functions and their documentation.
+
 ## Network configuration
 
-| Setting | Value |
-|---|---|
-| Network | Stellar testnet |
-| Network passphrase | `Test SDF Network ; September 2015` |
-| Soroban RPC | `https://soroban-testnet.stellar.org` |
-| Horizon | `https://horizon-testnet.stellar.org` |
-| Friendbot (XLM funding) | `https://friendbot.stellar.org` |
-
-The public testnet RPC endpoint is rate-limited; for anything beyond light reads, use your own or a paid RPC provider. Mainnet is planned but **not live** — no Noether contracts are deployed there. See [Networks](/protocol/networks) for details.
+The testnet passphrase, RPC and Horizon endpoints are on [Networks](/protocol/networks). Mainnet is planned but not live; no Noether contracts are deployed there.
 
 ## Event reference
 
-Soroban contracts publish events as a tuple of **topics** plus a **data payload**. Below, the topic symbol is shown in quotes and the data tuple lists fields in their exact on-chain order. Conventions:
+Soroban contracts publish events as a tuple of topics plus a data payload. Below, the topic symbol is shown in quotes and the data tuple lists fields in their exact on-chain order. Conventions:
 
 - `direction` serializes as the Direction enum: Long = `0`, Short = `1`.
-- Amounts, sizes, and prices are `i128` values in 7-decimal fixed point.
-- IDs (`position_id`, `order_id`) are `u64`; addresses are Stellar `Address` values; `asset` is a `Symbol` like `BTC`.
+- Amounts, sizes, prices and rates are `i128` values in 7-decimal fixed point.
+- IDs (`position_id`, `order_id`) are `u64`; a vault factory `vault_id` is `u32`; addresses are Stellar `Address` values; `asset` is a `Symbol` such as `BTC`.
 
-These events are what the Noether indexer consumes to build the REST projections (positions, trades, leaderboard) and the WebSocket event streams — see [WebSocket](/developers/websocket).
+These events are what the Noether indexer consumes to build the REST projections (positions, trades, leaderboard, vaults, referrals) and the WebSocket event streams. See [WebSocket](/developers/websocket).
 
 ### Market contract
 
 | Topic | Data tuple | Emitted when |
 |---|---|---|
-| `"initialized"` | `(admin, vault, oracle_adapter)` | Contract initialization |
-| `"paused"` / `"unpaused"` | `()` (empty) | Admin pauses or unpauses trading |
-| `"position_opened"` | `(position_id, trader, asset, direction, size, entry_price)` | Every open: isolated, cross-margin, and keeper-executed limit entries |
-| `"position_closed"` | `(position_id, trader, asset, direction, size, entry_price, current_price, pnl)` | Manual close (isolated or cross), stop-loss / take-profit / trailing-stop execution, reduce-only close |
-| `"position_liquidated"` | `(position_id, trader, asset, direction, size, keeper_reward, current_price)` | Isolated-position liquidation |
-| `"cross_liq"` | `(trader, total_pnl, keeper_reward)` | Cross-account liquidation — **one event for the whole account**; per-position `position_liquidated` events are NOT emitted |
-| `"order_placed"` | `(order_id, trader, trigger_price)` | `place_limit_order`, `set_stop_loss`, `set_take_profit` — **NOT emitted by `place_stop_limit_order` or `place_trailing_stop`** |
+| `"initialized"` | `(admin, vault, oracle_adapter)` | Contract initialization; `oracle_adapter` is the shim address |
+| `"paused"` | `(mode, since)` | Admin pauses trading; mode 1 = halt-open, 2 = full-freeze |
+| `"unpaused"` | `()` (empty) | Admin resumes |
+| `"pause_degraded"` | `(from_mode, to_mode)` | A full-freeze auto-degraded to halt-open after 72 hours |
+| `"asset_halt_set"` (second topic: `asset`) | `(halted)` | Admin halts or resumes one asset |
+| `"position_opened"` | `(position_id, trader, asset, direction, size, entry_price)` | Every open: isolated, cross and keeper-executed entries |
+| `"position_closed"` | `(position_id, trader, asset, direction, size, entry_price, current_price, pnl)` | Manual close (isolated or cross), stop-loss, take-profit or trailing execution, reduce-only close, ADL close, and each leg closed by auto-netting |
+| `"position_reduced"` | `(position_id, trader, asset, closed_size, remaining_size, current_price, pnl)` | Partial close, including a partial reduce-only fill |
+| `"collateral_added"` / `"collateral_removed"` | `(position_id, trader, amount, liquidation_price)` | Margin edit on an isolated position; carries the recomputed liquidation price |
+| `"position_partial_liq"` | `(position_id, trader, asset, direction, closed_size, keeper_reward, current_price)` | A partial-liquidation round; the position survives with reduced size |
+| `"position_liquidated"` | `(position_id, trader, asset, direction, size, keeper_reward, current_price)` | Full isolated liquidation, and once per leg closed by a cross-account liquidation |
+| `"liq_refund"` | `(trader, position_id, refund, penalty)` | Residual returned after a non-bankrupt liquidation; `position_id` 0 means the cross account |
+| `"cross_liq"` | `(trader, total_pnl, keeper_reward)` | One per `liquidate_cross_account` call, after the per-leg events |
+| `"bad_debt_recorded"` | `(trader, asset, amount, buffer_covered, lp_absorbed)` | A bankrupt liquidation left uncollectable debt; `asset` is `CROSS` for an account-level record |
+| `"funding_applied"` | `(asset, funding_rate, hours_elapsed, cumulative_index)` | Hourly funding tick, one per pair |
+| `"funding_migrated"` | `(asset, legacy_index)` | One-time migration from the global to the per-pair funding index |
+| `"adl_triggered"` / `"adl_cleared"` | `(asset, reason, payable_upnl, coverage)` | ADL flag change; reason 0 = coverage ratio, 1 = a winner was paid short |
+| `"adl_executed"` | `(position_id, trader, asset, direction, size, price, pnl, score)` | `adl_close` realized a winning position |
+| `"asset_risk_set"` | `(asset, max_leverage, im_bps, mm_bps)` | Admin set a pair's risk parameters |
+| `"fee_split_set"` | `(treasury, bps)` | Admin set the protocol fee share |
+| `"referral_set"` | `(referral)` | Admin wired the referral registry |
+| `"admin_rotated"` | `(old_admin, new_admin)` | Admin transfer |
+| `"order_placed"` | `(order_id, trader, trigger_price)` | `place_limit_order`, `place_stop_limit_order`, `set_stop_loss`, `set_take_profit` and `place_trailing_stop` (for a trailing stop the third field is the current mark) |
 | `"order_cancelled"` | `(order_id, reason)` | Any cancellation; `reason` is a Symbol (table below) |
 | `"order_executed"` | `(order_id, reward)` | Successful keeper execution of a pending order |
-| `"funding_applied"` | `(funding_rate, hours_elapsed)` | Hourly `apply_funding` call (the rate is stored globally; settlement is lazy, per position, at close or liquidation) |
 
 `order_cancelled` reasons:
 
 | Reason | Meaning |
 |---|---|
 | `"user"` | Owner called `cancel_order` |
-| `"slippage"` | Execution price breached the order's slippage tolerance; collateral refunded, order status set to CancelledSlippage |
-| `"ioc_not_filled"` | IOC order placed while its trigger condition wasn't met; collateral refunded at placement |
-| `"pos_closed"` | An attached stop-loss / take-profit / trailing stop was cancelled because its position closed or was liquidated |
+| `"slippage"` | Execution price breached the order's slippage tolerance; collateral refunded, status set to `CancelledSlippage` |
+| `"ioc_not_filled"` | IOC order placed while its trigger condition was not met; collateral refunded at placement |
+| `"pos_closed"` | An attached stop-loss, take-profit or trailing stop was cancelled because its position closed or was liquidated |
 | `"reduce_only_no_position"` | Reduce-only order executed with no suitable opposing position to close |
+| `"asset_unconfigured"` | Entry order executed on a pair that has no risk parameters; collateral refunded |
+| `"risk_config"` | Entry order no longer fits the pair's leverage cap or maximum size at execution; collateral refunded |
 
 <Callout type="info">
-Because stop-limit and trailing-stop placements emit no event, an event-only indexer will not see those orders until they execute (`order_executed`) or cancel (`order_cancelled`). To enumerate all resting orders, read contract state directly (`get_all_order_ids` plus `get_order`).
+  The indexer decodes the trading and solvency events above (positions, orders, liquidations, funding, ADL, pause state, asset halts and collateral edits) into `GET /v1/events`. Administrative events (`unpaused`, `fee_split_set`, `referral_set`, `admin_rotated`, `funding_migrated`, `asset_risk_set`) are not archived there; read them from Soroban RPC or an explorer.
 </Callout>
 
-### Liquidity Vault contract
+### Liquidity vault contract
 
 | Topic | Data tuple | Emitted when |
 |---|---|---|
 | `"initialized"` | `(admin, market_contract, usdc_token, noe_token)` | Contract initialization |
 | `"deposit"` | `(depositor, usdc_amount, noe_amount, fee)` | LP deposits USDC, receives NOE |
 | `"withdraw"` | `(withdrawer, noe_amount, net_usdc, fee)` | LP redeems NOE for USDC |
-| `"pnl_settled"` | `(pnl)` | Every `settle_pnl` call from the market (win, loss, or zero) |
-| `"payout_shortfall"` | `(pnl, paid, short)` | A winner's payout exceeded the pool-plus-buffer capacity; the unpaid remainder is recorded |
+| `"pnl_settled"` | `(pnl)` | Every `settle_pnl` call from the market (win, loss or zero) |
+| `"payout_shortfall"` | `(trader, pnl, paid, short)` | A winner's payout exceeded buffer plus pool; the unpaid remainder is booked as that trader's claim |
 | `"loss_received"` | `(amount)` | Market credited a real USDC receipt (trader losses, funding, fees) |
+| `"bounty_paid"` | `(keeper, amount, paid)` | Insurance buffer topped a liquidation keeper up to the bounty floor |
+| `"protocol_fee_routed"` | `(amount, to_buffer, overflow)` | Protocol fee share split between the insurance buffer and the treasury |
 | `"exposure_synced"` (second topic: `asset`) | `(asset_unrealized_pnl, total_unrealized_pnl, release)` | Market pushed a fresh per-asset mark or released a payout reservation |
+| `"buffer_seeded"` / `"buffer_funded"` | `(amount, to_reserve)` | Admin seeded, or the market credited, the insurance buffer |
+| `"buffer_drawn"` | `(amount, covered)` | Bad debt drawn from the buffer |
+| `"buffer_paid"` | `(to, amount, paid)` | Buffer paid an ADL compensation |
+| `"shortfall_repaid"` | `(trader, paid, remaining)` | A trader claimed part of an outstanding payout shortfall |
 | `"market_updated"` | `(old_market, new_market)` | Admin re-pointed the vault at a new market contract |
 | `"deposit_fee_updated"` / `"withdraw_fee_updated"` | `(fee_bps)` | Admin changed a vault fee |
-| `"deposit_cap_set"` | `(cap)` | Admin set the guarded-launch per-account deposit cap |
-| `"buffer_seeded"` | `(amount)` | Admin seeded the insurance buffer |
-| `"buffer_funded"` | `(amount)` | Market credited the insurance buffer |
-| `"paused"` / `"unpaused"` | `()` (empty) | Vault pause state changed (blocks deposits and withdrawals only) |
+| `"deposit_cap_set"` / `"aum_cap_set"` | `(cap)` | Admin set the per-account or the global deposit cap (0 = unlimited) |
+| `"withdraw_cooldown_set"` | `(seconds)` | Admin changed the post-deposit withdrawal cooldown |
+| `"buffer_target_set"` / `"shortfall_bps_set"` / `"reserve_cap_set"` | `(bps)` | Admin changed the buffer target, the shortfall repayment share or the aggregate reserve cap |
+| `"asset_cap_set"` / `"skew_cap_set"` | `(asset, bps)` | Admin changed a per-asset side cap or net-skew cap |
+| `"asset_cap_abs_set"` | `(asset, max_notional)` | Admin set an absolute per-asset cap |
+| `"paused"` / `"unpaused"` | `()` (empty) | Vault pause state changed (blocks deposits only; withdrawals are never pause-gated) |
 | `"admin_updated"` | `(old_admin, new_admin)` | Admin transfer |
-| `"emergency_withdraw"` | `(amount, recipient)` | Paused-only admin escape hatch |
+| `"recovery_init"` / `"recovery_proposed"` / `"recovery_executed"` / `"recovery_cancelled"` | `(recipient)` / `(amount, execute_after)` / `(paid, recipient)` / `()` | Timelocked admin recovery flow, usable only while paused |
+
+The indexer archives every topic above except `aum_cap_set`, `shortfall_bps_set`, `reserve_cap_set` and `asset_cap_set`.
 
 ### Vault Factory contract (Trader Vaults)
 
-Vault Factory events carry the **vault ID as a second topic**, so you can filter per vault without decoding payloads.
+Vault factory events carry the vault ID as a second topic, so you can filter per vault without decoding payloads.
 
 | Topics | Data tuple | Emitted when |
 |---|---|---|
-| `"initialized"` | `(admin, market, usdc)` | Contract initialization |
-| `"vault_created"`, `id` | `(leader, name)` | New Trader Vault created |
+| `"vault_created"`, `vault_id` | `(leader, name)` | New Trader Vault created |
 | `"deposit"`, `vault_id` | `(depositor, amount, shares)` | Depositor buys shares |
 | `"withdraw"`, `vault_id` | `(depositor, shares, usdc_out)` | Depositor redeems shares |
 | `"leader_open"`, `vault_id` | `(leader, position_id, collateral)` | Leader opened a market position through the vault |
 | `"leader_close"`, `vault_id` | `(leader, position_id)` | Leader closed a vault position |
 | `"leader_limit"`, `vault_id` | `(leader, order_id)` | Leader placed a limit order through the vault |
+| `"leader_stop_limit"`, `vault_id` | `(leader, order_id)` | Leader placed a stop-limit entry through the vault |
 | `"leader_cancel"`, `vault_id` | `(leader, order_id)` | Leader cancelled a vault order |
+| `"leader_sl"` / `"leader_tp"` / `"leader_trail"`, `vault_id` | `(leader, order_id, position_id)` | Leader attached a stop-loss, take-profit or trailing stop to a vault position |
+| `"order_reconciled"`, `vault_id` | `(order_id, position_id, credited)` | A keeper-resolved vault order was reconciled (executed or refunded) |
+| `"position_reconciled"`, `vault_id` | `(position_id, proceeds)` | A keeper-closed vault position was reconciled with its exact proceeds |
 | `"fees_claimed"`, `vault_id` | `(leader, owed, new_nav)` | Leader claimed profit share above the high-water mark |
 | `"paused"` / `"unpaused"`, `vault_id` | `()` (empty) | Leader paused or unpaused the vault |
 | `"admin_paused"` / `"admin_unpaused"`, `vault_id` | `()` (empty) | Factory admin paused or unpaused the vault |
+| `"allowlist_set"` | `(leaders)` | Admin restricted who may create vaults (empty list = permissionless) |
+| `"max_vaults_set"` | `(max)` | Admin capped the number of vaults (0 = unlimited) |
+| `"admin_rotated"` | `(old_admin, new_admin)` | Admin transfer |
+
+The indexer archives every per-vault topic; `allowlist_set`, `max_vaults_set` and `admin_rotated` carry no vault ID and are not decoded.
 
 ### Referral contract
 
@@ -154,23 +176,26 @@ Vault Factory events carry the **vault ID as a second topic**, so you can filter
 | `"initialized"` | `(admin, market)` | Contract initialization |
 | `"code_created"` | `(referrer, code)` | A referral code is registered |
 | `"referrer_set"` | `(referee, referrer, code)` | A trader binds to a referral code (permanent, one-time) |
-| `"trade_recorded"` | `(referee, referrer, original_fee, discount, payout)` | `record_trade` — market-only entry point; **not currently emitted** (see note) |
-| `"claimed"` | `(referrer, amount)` | Referrer claims accrued rewards |
+| `"trade_recorded"` | `(referee, referrer, original_fee, discount, payout, volume)` | The market recorded a fee-bearing open by a referred trader |
+| `"claimed"` | `(referrer, amount)` | Referrer claimed accrued rewards in USDC |
+| `"code_revoked"` / `"code_unrevoked"` | `(referrer, code)` | Admin revoked or restored a code |
+| `"unbound"` | `referee` (single value) | Admin removed a referee's binding |
+| `"discount_bps_set"` / `"ref_share_bps_set"` / `"min_code_volume_set"` | `(bps)` / `(bps)` / `(volume)` | Admin changed the discount, the referrer share or the code-creation volume floor |
+| `"market_rotated"` / `"usdc_rotated"` | `(market)` / `(usdc)` | Admin re-pointed the registry |
+| `"admin_rotated"` | `(old_admin, new_admin)` | Admin transfer |
 
-<Callout type="info">
-The deployed market contract does not yet call the referral contract's `record_trade`, so `trade_recorded` events do not appear on-chain today. Code registration and referrer binding (`code_created`, `referrer_set`) are live now; the fee economics — the 4% referee discount and 10% referrer share — activate in v1.1, when a market upgrade wires the on-chain hook. See [Referrals](/guides/referrals) for how the program works in practice.
-</Callout>
+The indexer archives `code_created`, `referrer_set`, `trade_recorded` and `claimed`.
 
 ## Reading events yourself
 
 Events are available three ways:
 
-- **Soroban RPC** — `getEvents` against `https://soroban-testnet.stellar.org`, filtered by the contract addresses above.
-- **Noether gateway** — the indexer archives raw events and serves them over REST (`GET /v1/events`) and streams them over WebSocket. See the [REST API](/developers/rest-api) and [WebSocket](/developers/websocket) references.
-- **Explorer** — each stellar.expert link above shows a contract's recent invocations and events.
+- **Soroban RPC**: `getEvents` against `https://soroban-testnet.stellar.org`, filtered by the contract addresses above.
+- **Noether gateway**: the indexer archives the decoded events and serves them over REST (`GET /v1/events`, filterable by `topic`, `contract`, `from_ledger`, `to_ledger` and `before_ts`) and streams them over WebSocket. See the [REST API](/developers/rest-api) and [WebSocket](/developers/websocket) references.
+- **Explorer**: each address in the table above links to the contract's page on a Stellar block explorer, which shows recent invocations and events.
 
 ## Next steps
 
-- [Architecture](/protocol/architecture) — how the market, vault, router, and oracle fit together
-- [Oracle](/protocol/oracle) — the Noeracle price chain these contracts depend on
-- [Networks](/protocol/networks) — testnet details and the mainnet plan
+- [Architecture](/protocol/architecture): how the market, vault, router and oracle fit together
+- [Oracle and price feeds](/protocol/oracle): the Noeracle price chain these contracts depend on
+- [Networks](/protocol/networks): testnet details and the mainnet plan

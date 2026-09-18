@@ -1,26 +1,26 @@
 ---
-title: Protocol
-description: How Noether works under the app. Contracts, the price chain, the trading mechanics and the network facts, with every address verifiable on-chain.
+title: "Overview"
+description: "Where to start for the contracts, the price chain, the trading maths, the network facts and the disclosure policy behind the Noether testnet."
 ---
 
 <Cards>
   <Card title="Architecture" href="/protocol/architecture">
-    The market, vault, router and registry contracts and how a trade moves between them.
+    The six contracts, the Noeracle price source and the off-chain services, and how one trade moves through them.
   </Card>
   <Card title="Oracle and price feeds" href="/protocol/oracle">
-    Noeracle signed prices, the SEP-40 shim, staleness limits and the verify-then-trade path.
+    Signed Noeracle attestations, the SEP-40 shim, the 60-second staleness rule and the verify-then-trade router.
   </Card>
   <Card title="Trading mechanics" href="/protocol/trading-mechanics">
-    Margin, PnL, fee tiers, funding, liquidation and the insurance buffer, as the contracts compute them.
+    Precision, the margin ladder, per-market funding, partial and staged liquidation, fee tiers and pool capacity limits.
   </Card>
   <Card title="Contracts and events" href="/protocol/contracts">
-    Deployed addresses, generated from the live gateway, and the event formats the indexer decodes.
+    Addresses generated from the live gateway, how to verify them, and every event the contracts emit with its field order.
   </Card>
   <Card title="Networks" href="/protocol/networks">
-    Testnet endpoints, passphrase, faucet limits and what a testnet reset means for you.
+    Testnet endpoints and passphrase, the faucet limits, what a testnet reset does, and where mainnet stands.
   </Card>
   <Card title="Security and audits" href="/protocol/security">
-    Audit status, the disclosure policy, and what is in scope.
+    Audit status, how to report a vulnerability, what is in scope, and the interim reward policy.
   </Card>
   <Card title="Changelog" href="/protocol/changelog">
     Dated, user-facing changes to the app, the API, the SDKs and the deployed stack.
