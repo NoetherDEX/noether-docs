@@ -1,44 +1,41 @@
 ---
-title: "Trader Vaults"
-description: "Trader Vaults are user-created copy-trading vaults: a leader trades a shared pool of USDC, depositors hold shares of it, and the leader earns 10% of any gains above the…"
+title: "Trader vaults"
+description: "Copy-trading vaults on the Vaults page: how depositors buy shares and withdraw, how leaders create, trade and get paid, and the on-chain rules for both."
 ---
 
-Trader Vaults are user-created copy-trading vaults: a leader trades a shared pool of USDC, depositors hold shares of it, and the leader earns 10% of any gains above the vault's high-water mark. This page covers both sides — depositing into someone else's vault, and running your own.
+Trader vaults are user-created copy-trading vaults: a leader trades a shared pool of USDC, depositors hold shares of it, and the leader earns 10% of any gains above the vault's high-water mark. This page covers both sides, depositing into someone else's vault and running your own.
 
-Trader Vaults are separate from the protocol's [Liquidity Vault](/guides/vault). The Liquidity Vault is the counterparty to all trades on Noether; a Trader Vault is a pooled trading account managed by one wallet.
-
-<Callout type="warning">
-**Beta accounting limitation.** Leader-vault accounting currently counts only the USDC sitting in the vault. While the leader has open positions, the vault's TVL, NAV, and P&L exclude the deployed capital — and **withdrawing mid-trade forfeits your share of it**. A contract fix is scheduled before mainnet. The app shows this banner on every vault page for a reason: check the vault's open trades before you withdraw.
-</Callout>
+Trader vaults are separate from the protocol vault on the Earn page. The protocol vault is the counterparty to all trades on Noether; a trader vault is a pooled trading account managed by one wallet. See [Earn: protocol vault](/guides/vault) for the other product.
 
 ## Mechanics at a glance
 
 | Parameter | Value | Notes |
 |---|---|---|
 | Leader profit share | 10% | Only on gains above the high-water mark |
-| Leader minimum holding | 5% of vault shares | Enforced on-chain after every deposit, withdrawal, and every position the leader opens |
-| Max outside capital | 19x the leader's own stake | Direct consequence of the 5% rule |
-| Vault deposit / withdrawal fee | None | Trading fees still apply to the leader's trades |
-| Share pricing | Liquid NAV | First deposit: 1 USDC = 1 share |
-| Leader trading limits | Same as normal trading | 1–10x leverage, 10 USDC minimum collateral, $100,000 max position size |
-| Position style | Isolated margin, market orders (in the app) | Positions belong to the vault, not the leader's wallet |
-
-Trading fees on a leader's trades are charged at the vault system's own fee tier, not the leader's personal wallet tier — the app notes this in leader mode.
+| Leader minimum holding | 5% of vault shares | Enforced on-chain on every deposit and withdrawal, and when the leader trades |
+| Max outside capital | 19 times the leader's own stake | Direct consequence of the 5% rule |
+| Vault deposit or withdrawal fee | None | Trading fees still apply to the leader's trades |
+| Share pricing | Full NAV | USDC on hand plus the mark-to-market equity of open positions and the collateral of pending orders |
+| Leader trading limits | Same as normal trading | 1x to 10x leverage, 10 USDC minimum collateral, $100,000 max position size |
+| Position style | Isolated margin, market orders in the app | Positions belong to the vault, not to the leader's wallet |
 
 ## For depositors
 
 ### Browse the marketplace
 
-Open **Vaults** in the header (or go to `https://testnet.noether.exchange/vaults`). The page opens with the protocol **Noether Vault** (the LP pool — see [Liquidity Vault](/guides/vault)), followed by the **Leader Vaults** section. Each vault card shows:
+Open Vaults in the header (or go to `https://testnet.noether.exchange/vaults`). The page opens with the protocol vault card ("Noether Vault", with an "Open Noether Vault" button that leads to the Earn page), followed by the Leader Vaults section. Each row shows:
 
-- **Name**, the **leader's address** (shortened), and the vault **#id**
-- A **Paused** badge if the leader or admin has paused it (deposits, withdrawals, and leader trades are all blocked while paused)
-- **TVL (liquid)** and **Liquid NAV** — the USDC actually sitting in the vault
-- **APY**, **Drawdown**, **Depositors**, and **Open trades**
+- Vault name, the leader's shortened address, and a Paused badge if the leader or admin has paused it (deposits, withdrawals and leader trades are all blocked while paused; a "Hide paused" toggle filters them out)
+- TVL (liquid) and Liquid NAV, the USDC actually sitting in the vault
+- APY, Drawdown, Depositors and Open trades
 
-Base vault data is read directly on-chain, so the marketplace works even when the stats API is unavailable — aggregate figures then show "—" rather than made-up numbers.
+Base vault data is read directly on-chain, so the marketplace works even when the stats service is unavailable; aggregate figures then show "—" rather than made-up numbers.
 
-Click a vault to open its detail page: metrics, a PnL history chart, your own position, the leader's trade history, deposit and withdrawal activity, and the leader's past profit-share claims. The "How this vault works" section at the bottom restates the exact profit-share and minimum-holding terms for that vault.
+Click a vault to open its detail page: metrics, your own position, the leader's trade history, deposit and withdrawal activity, and the leader's past profit-share claims. The "How this vault works" section at the bottom restates the exact profit-share and minimum-holding terms for that vault.
+
+<Callout type="info" title="Liquid figures versus full NAV">
+The marketplace tiles and the deposit modal are labelled liquid: they count only the USDC on hand. The contract prices every deposit and withdrawal at full NAV, which also includes the mark-to-market equity of the leader's open positions and the collateral of pending orders. While the leader has trades open, expect the executed share price to differ from the liquid preview.
+</Callout>
 
 ### Deposit
 
@@ -46,40 +43,39 @@ Click a vault to open its detail page: metrics, a PnL history chart, your own po
 
 ### Open the deposit modal
 
-On the vault's detail page, click **Deposit / Withdraw**. The modal shows three stat tiles — **Liquid TVL**, **Liquid NAV**, and **Shares out** — with a **Deposit | Withdraw** toggle.
+On the vault's detail page, click Deposit / Withdraw. The modal shows three stat tiles, Liquid TVL, Liquid NAV and Shares out, with a Deposit | Withdraw toggle.
 
 ### Enter an amount
 
-Type a USDC amount (or use the **Max** button). The preview shows *"You will receive ≈ N shares"*. The first deposit into a vault is priced at 1 USDC = 1 share; after that, shares are minted at the vault's current liquid NAV.
+Type a USDC amount (or use the Max button). The preview shows "You will receive ≈ N shares". Shares are minted at the vault's current NAV per share.
 
 ### Sign once
 
-Confirm in your wallet — one signature. Your USDC moves into the vault and shares are credited to your address. Your position appears in the **My position** section of the vault page.
+Confirm in your wallet, one signature. Your USDC moves into the vault and shares are credited to your address. Your position appears in the Your Position section of the vault page.
 
 </Steps>
 
-<Callout type="info">
-If the leader has not seeded the vault with their own deposit yet, the modal warns you and the deposit **will fail on-chain**: an outside deposit into an unseeded vault would break the 5% leader-holding rule. Wait until the leader has skin in the game — that is the point of the rule.
-</Callout>
+If the leader has not seeded the vault with their own deposit yet, the modal warns you and the deposit will fail on-chain: an outside deposit into an unseeded vault would break the 5% leader-holding rule. Wait until the leader has skin in the game; that is the point of the rule.
 
 ### Withdraw
 
-Use the same modal with the **Withdraw** toggle. Enter a share amount (or **Max**); the preview shows *"You will receive ≈ N USDC at liquid NAV"*. One wallet signature burns your shares and pays out USDC.
+Use the same modal with the Withdraw toggle. Enter a share amount (or Max); the preview shows the USDC you will receive. One wallet signature burns your shares and pays out USDC, valued at full NAV.
 
-<Callout type="error">
-If the leader has open positions when you withdraw, the modal shows a red warning with the number of positions and the approximate capital deployed. That capital is **excluded** from the liquid NAV your withdrawal is priced at — withdrawing now permanently forfeits your share of it, even if those positions later close at a profit. Unless you need out immediately, wait for the leader's positions to close.
+<Callout type="warning" title="When the leader's capital is deployed">
+The payout has to come out of the vault's liquid USDC. If the leader has capital in open positions and your withdrawal is larger than what is on hand, the contract rejects it and the app says the capital is deployed in open positions: wait for the leader to close trades, or withdraw a smaller amount that fits the liquid balance. The modal also shows how many positions are open before you sign.
 </Callout>
 
 ### How the leader gets paid
 
-The leader's only compensation is the profit share: **10% of gains above the high-water mark (HWM)**, measured on the vault's NAV per share.
+The leader's only compensation is the profit share: 10% of gains above the high-water mark (HWM), measured on the vault's NAV per share.
 
 - The HWM starts at a NAV of 1.0 and only moves up.
-- Example: if NAV rises from 1.0 to 1.2 on a vault with 1,000 shares outstanding, the gain is $200 and the leader can claim **$20**.
-- After a claim, the HWM resets to the post-payout NAV — the leader can never charge twice on the same gain.
+- Example: if NAV rises from 1.0 to 1.2 on a vault with 1,000 shares outstanding, the gain is $200 and the leader can claim $20.
+- After a claim, the HWM resets to the post-payout NAV, so the leader can never charge twice on the same gain.
 - If NAV is at or below the HWM (the vault is underwater), there is nothing to claim. The leader must first recover past losses before earning anything new.
+- A claim is paid from the vault's liquid USDC, so it also waits for capital that is deployed in open positions.
 
-Claims appear in the **Leader Fee Claims** table on the vault's detail page.
+Claims appear in the Leader Fee Claims table on the vault's detail page.
 
 ## For leaders
 
@@ -89,56 +85,55 @@ Claims appear in the **Leader Fee Claims** table on the vault's detail page.
 
 ### Open the create modal
 
-On the Vaults page, click the create-vault button in the **Leader Vaults** section. The **Create vault** modal has one field: **Vault name** (1–64 characters).
+On the Vaults page, click the create-vault button in the Leader Vaults section. The Create vault modal has one field, Vault name (1 to 64 characters).
 
 ### Read the terms
 
-The modal spells out what you are signing up for: you become the vault leader, you take 10% of gains above the high-water mark, and you must hold **at least 5% of the vault's shares at all times**.
+The modal spells out what you are signing up for: you become the vault leader, depositors back you with USDC, you take 10% of gains above the high-water mark, and you must hold at least 5% of the vault yourself at all times.
 
 ### Sign and seed
 
-One wallet signature creates the vault. Then **make the first deposit yourself** before sharing the vault — outside deposits into an unseeded vault fail on-chain. Once you've seeded it with your own USDC, outsiders can deposit up to **19 times your stake** (at that point you hold exactly 5%).
+One wallet signature creates the vault. Then make the first deposit yourself before sharing the vault; outside deposits into an unseeded vault fail on-chain. Once you have seeded it with your own USDC, outsiders can deposit up to 19 times your stake (at that point you hold exactly 5%).
 
 </Steps>
 
-<Callout type="warning">
-The 5% rule is enforced on-chain after every deposit, withdrawal, and every position you open. You cannot withdraw your own stake below 5% of the outstanding shares, and a deposit that would dilute you below 5% is rejected. If you want to grow the vault's capacity, add more of your own capital first.
+The protocol can restrict vault creation to an allowlist of leaders, or cap the number of vaults. If either is in force, creation fails with a message that vault creation is currently restricted.
+
+<Callout type="warning" title="The 5% rule">
+The 5% rule is enforced on-chain on every deposit and withdrawal, and when you trade. You cannot withdraw your own stake below 5% of the outstanding shares, and a deposit that would dilute you below 5% is rejected. If you want to grow the vault's capacity, add more of your own capital first.
 </Callout>
 
 ### Trade the vault
 
-There are two ways to trade vault funds. Both require the vault to be unpaused and the connected wallet to be the leader.
+Click "Trade as leader →" on your vault's detail page (or pick the vault in the leader selector on the Trade page). The order panel switches to leader mode: a banner shows that you are trading from the vault and its USDC balance, collateral is drawn from the vault, and every listed pair is available. Leader mode in the app supports market orders and isolated margin only; limit, stop-limit and trailing orders, cross margin, and take-profit or stop-loss are hidden. See [Trading](/guides/trading) for the general order flow.
 
-**Manage page** — a dedicated leader console at `/vaults/{id}/manage` (append `/manage` to your vault's URL — there is no button for it in the app yet; non-leaders see a "Leader-only page" notice). It has three cards:
+Positions you open this way belong to the vault, not to your personal wallet, and the vault's NAV tracks them mark-to-market while they are open. The old `/vaults/ID/manage` console no longer exists; that address now redirects to leader mode on the Trade page, and the detail page carries everything else a leader needs.
 
-- **Open position** — pick an asset (**BTC, ETH, or XLM only** in this panel — a current limitation; the full pair list is available in leader mode on the trade page), choose Long or Short, enter collateral in USDC, and set leverage with the 1–10x slider (default 2x). One signature opens the position with the vault's USDC.
-- **Close position** — enter the position id and sign once.
-- **Claim profit share** — pulls the vault's 10% share of any liquid-NAV gain above the high-water mark to your wallet, then resets the HWM.
+### Claim your profit share
 
-**Leader mode on the trade page** — click **Trade as leader →** on your vault's detail page (or pick the vault in the leader selector on the trade page). The order panel switches to leader mode: an amber banner shows which vault you are trading and its USDC balance, collateral is drawn from the vault, and all 13 listed pairs are available. Leader mode supports **market orders and isolated margin only** — limit, stop-limit, and trailing orders, cross margin, and take-profit/stop-loss are hidden. See [Trading](/guides/trading) for the general order flow.
-
-Positions you open this way belong to the vault, not your personal wallet. After every open and close, the vault's accounting resyncs from its actual on-chain USDC balance, so PnL lands in the vault automatically.
+The detail page shows "Claim profit share" with the claimable amount whenever NAV is above the high-water mark. One signature pays it to your wallet and resets the mark.
 
 ### Pausing
 
-A leader can pause their own vault (and the protocol admin can pause any vault). While paused, deposits, withdrawals, and leader trades are all blocked, and the marketplace card shows a **Paused** badge.
+A leader can pause their own vault from the detail page (Pause vault, then Unpause), and the protocol admin can pause any vault. While paused, deposits, withdrawals and leader trades are all blocked, and the marketplace row shows a Paused badge.
 
 ### What can go wrong (common on-chain rejections)
 
 | Situation | Result |
 |---|---|
-| Outsider deposits before the leader seeds | Rejected — 5% leader-holding rule |
+| Outsider deposits before the leader seeds | Rejected: 5% leader-holding rule |
 | Leader withdraws below 5% of shares | Rejected |
-| Opening a position with more collateral than the vault holds | Rejected — insufficient vault balance |
-| Claiming profit share while NAV is at or below the HWM | Rejected — nothing to claim |
+| Withdrawal larger than the vault's liquid USDC | Rejected: capital is deployed in open positions |
+| Opening a position with more collateral than the vault holds | Rejected: insufficient vault balance |
+| Claiming profit share while NAV is at or below the HWM | Rejected: nothing to claim |
 | Any action on a paused vault | Rejected |
 
-<Callout type="warning">
-Everything here runs on the Stellar **testnet** with test USDC — funds are play money, and testnet resets can wipe state. Copy-trading also carries inherent design risk: depositors are trusting one wallet's trading decisions with pooled funds.
+<Callout type="warning" title="Copy-trading risk">
+Depositors are trusting one wallet's trading decisions with pooled funds, and the vault's positions can be liquidated like any other. Only deposit what you can afford to lose, on testnet and beyond.
 </Callout>
 
 ## Next steps
 
-- [Getting started](/guides/getting-started) — connect a wallet and get test USDC
-- [Trading](/guides/trading) — order types, fees, and liquidation
-- [Liquidity Vault](/guides/vault) — the protocol LP pool (a different product)
+- [Getting started](/guides/getting-started): connect a wallet and get test USDC
+- [Trading](/guides/trading): order types, fees and liquidation
+- [Earn: protocol vault](/guides/vault): the protocol LP pool, a different product
