@@ -19,6 +19,7 @@ Internal incidents and operations are not listed here.
 
 ## 2026-07
 
+- **2026-09-28** Maximum leverage raised to 25x on every listed pair on testnet (the ladder's 4% initial / 2% maintenance margin already implied that ceiling), matching the production parameter the mainnet stack ships with. Pyth Pro (live on Stellar since 2026-09-08) added as the on-chain cross-check for Noeracle prices: the router verifies signed Pyth payloads through Pyth's verifier contract and halts new positions on divergence.
 - **2026-07-21** Production stack redeployed on testnet with fresh contract addresses (see [Contracts and events](/protocol/contracts)). The new market adds partial close and add or remove collateral on isolated positions, an acceptable-price bound on opens and closes, auto-netting of opposite positions, per-market risk parameters (4% initial and 2% maintenance margin at up to 10x), per-market funding, partial and staged liquidation with an insurance buffer, an auto-deleveraging backstop, and a two-tier pause.
 - **2026-07-19** Public testnet app at [testnet.noether.exchange](https://testnet.noether.exchange).
 - **2026-07-16** Gateway: `GET /v1/orders/open` added; `GET /v1/trades` gains `include_opens` and cross-liquidation rows; both SDKs gain `orders.open()`.

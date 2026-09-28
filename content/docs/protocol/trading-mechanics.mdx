@@ -56,7 +56,7 @@ Read with `get_asset_risk(asset)`; every configured pair currently returns the s
 
 | Parameter | Value |
 |---|---|
-| Maximum leverage | 10x |
+| Maximum leverage | 25x |
 | Initial margin (`im_bps`) | 4% of notional |
 | Maintenance margin (`mm_bps`) | 2% of notional |
 | Maximum position size | $100,000 notional |
@@ -64,7 +64,7 @@ Read with `get_asset_risk(asset)`; every configured pair currently returns the s
 | Funding rate cap (`funding_clamp_bps`) | 0.05% per hour |
 | Skew scale | $200,000 |
 
-The contract enforces `mm_bps = im_bps / 2` and `im_bps` of at least 4%, so no market can ever offer more than 25x; the testnet ladder caps leverage at 10x explicitly. Positions opened before the ladder was activated keep the legacy 1% maintenance margin. A pair without parameters rejects every risk-increasing operation with `#88 AssetRiskNotConfigured` (fail-closed) while closes and liquidations keep working.
+The contract enforces `mm_bps = im_bps / 2` and `im_bps` of at least 4%, so no market can ever offer more than 25x; since 2026-09-28 every listed pair is set to that 25x ceiling on testnet, the same value the mainnet stack ships with. Positions opened before the ladder was activated keep the legacy 1% maintenance margin. A pair without parameters rejects every risk-increasing operation with `#88 AssetRiskNotConfigured` (fail-closed) while closes and liquidations keep working.
 
 Minimum collateral is 10 USDC (`#22 InsufficientCollateral`); the open also fails if the trading fee would consume all of it.
 
@@ -83,7 +83,7 @@ Long:   liq_price = entry − entry × adjustment / PRECISION
 Short:  liq_price = entry + entry × adjustment / PRECISION
 ```
 
-At 10x leverage with the 2% maintenance margin, a long liquidates at entry × 0.92 and a short at entry × 1.08. After a partial close, a partial liquidation or a collateral change, the liquidation price is recomputed from the actual collateral-to-size ratio.
+At 25x leverage with the 2% maintenance margin, a long liquidates at entry × 0.98 and a short at entry × 1.02; at 10x the same formula gives entry × 0.92 and entry × 1.08. After a partial close, a partial liquidation or a collateral change, the liquidation price is recomputed from the actual collateral-to-size ratio.
 
 Adjusting an open isolated position:
 
@@ -180,7 +180,7 @@ Each closed leg pays a penalty of 1% of its notional, split 50/50 between keeper
 ADL is the backstop for when the pool cannot cover its winners. `check_adl_trigger(asset)` (permissionless; the keeper calls it) flips the asset's ADL flag on when insurance buffer plus LP USDC falls below 1.25 times the payable winner uPnL for that asset, and clears it once coverage is back above 1.5 times; a winner paid short at settlement flips the flag immediately. While it is active, new exposure on that asset is refused (`#82`), and anyone may call `adl_close` on a net-winning position, which realizes it in full at the oracle mark (no slippage; a better-than-mark compensation from the buffer is configurable and currently 0). Events: `adl_triggered`, `adl_cleared`, `adl_executed`. The gateway lists candidates at `GET /v1/adl/queue`.
 
 <Callout type="warning">
-  Liquidation costs at least the penalty and, for a bankrupt position, all of the remaining collateral. At 10x leverage an adverse move of roughly 8% reaches the liquidation price. Size positions accordingly, even with testnet funds.
+  Liquidation costs at least the penalty and, for a bankrupt position, all of the remaining collateral. At 25x leverage an adverse move of roughly 2% reaches the liquidation price, and at 10x roughly 8%. Size positions accordingly, even with testnet funds.
 </Callout>
 
 ## Fees

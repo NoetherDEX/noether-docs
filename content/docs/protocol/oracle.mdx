@@ -9,7 +9,7 @@ Every trade on Noether settles against an oracle price. This page explains where
 
 Noether reads prices from Noeracle, a pull oracle built on Stellar. The model has two halves:
 
-1. **Off-chain publishing.** A publisher computes a median price per feed from 5 exchange sources and signs a round about twice a second. Each round covers the tuple (feed tag, price, timestamp, round ID), signed with an ed25519 key.
+1. **Off-chain publishing.** A publisher drops stale and outlier samples from 5 exchange sources, computes an exchange-weighted average per feed and signs a round about twice a second. Each round covers the tuple (feed tag, price, timestamp, round ID), signed with an ed25519 key.
 2. **On-chain relaying.** Anyone may relay a signed round to the Noeracle contract. The deployed build stores the median of the submitted publisher rounds as a persistent price entry keyed by an 8-byte feed tag (`BTC` maps to the ASCII tag `BTCUSD`, zero-padded to 8 bytes). The quorum, the minimum number of distinct registered publishers a relayed round must carry, is 1 today.
 
 A live attestation from the Noeracle API looks like this (excerpt):
@@ -93,6 +93,28 @@ The round then goes to Noeracle's quorum entry point, which re-checks the signat
   The keeper uses the same router entry points for liquidations and order executions, so those also settle on a price relayed in the same transaction. The heartbeat is what keeps prices fresh between trades.
 </Callout>
 
+## Second source: the Pyth cross-check
+
+Since 2026-09-28 the router cross-checks Noeracle against Pyth Pro, the pull oracle that went live on Stellar in September 2026. Pyth's Soroban contract is a verifier, not a price store, so the integration mirrors the router's own verify-then-trade design:
+
+1. The keeper subscribes to Pyth's signed price stream and, every 40 seconds, forwards the freshest signed payload to the router's `relay_pyth` entry point on a dedicated fee key.
+2. The router hands the payload to Pyth's verifier contract, which checks the signature, and parses the verified feeds it returns: price, exponent and the feed's own update time.
+3. The router scales each mapped feed to 7 decimals, refuses payloads that are stale or future-dated, never lets an older feed overwrite a newer one, and caches the result per asset.
+4. On every open and order execution the router compares the price Noeracle just stored against the cached Pyth price. A divergence beyond the configured band rejects the trade with `#81 PriceDeviationTooHigh`; a missing or stale Pyth price lets the trade through (fail-open) unless the asset is on the strict list, in which case it rejects with `#30 PriceStale`.
+
+Closes, partial closes, liquidations and protective executions are never gated on the cross-check: if the two sources disagree you can always reduce risk, you just cannot add it. The keeper applies the same rule off-chain and skips its heartbeat push for an asset whose Noeracle and Pyth prices disagree by more than 1.5%.
+
+| Setting | Value |
+|---|---|
+| Pyth verifier contract | `CAYFT5JE3UQTKT4Q6ZOZK4FXVYVT6RE3MFC7STA4UB6WAEGBT65MRU52` (testnet), `CACZ3GBAKUPIAFRILUFO27J5RUH5GJ2VSJ46LP6GJYSKGDRTQ5MS3HCH` (mainnet) |
+| Stream channel | `fixed_rate@200ms`, `leEcdsa` format |
+| Freshness window | 90 seconds |
+| Divergence band | 1% (100 bps) |
+| Strict assets | none (fail-open everywhere) |
+| Feeds covered | the pairs the keeper's Pyth plan is entitled to; `GET /v1/oracle/health` lists them under `keeper.lastReport.pyth` |
+
+The router exposes `get_pyth_config`, `get_pyth_assets`, `get_pyth_strict_assets` and `get_pyth_price(asset)` so anyone can read the cross-check state and the last verified Pyth price per asset. The same mechanism previously targeted Stork Fast and remains available for it; Pyth is the source in use.
+
 ## Safety rails
 
 All values below are the deployed production configuration.
@@ -105,6 +127,7 @@ All values below are the deployed production configuration.
 | Smoothed mark | market, via the shim's `twap` | mean of the newest 4 ring entries, ignored when the newest is older than 300 seconds | A non-bankrupt liquidation must also breach on the smoothed mark, else `#86 LiquidationNotConfirmed`; protective stops trigger on it |
 | Sanity bands | router | coarse USD bounds per pair | `#31 InvalidPrice`, even with valid signatures |
 | Publisher allowlist | router | registered keys only | `#3 Unauthorized` |
+| Pyth cross-check | router | 1% (100 bps) against the last verified Pyth price, when younger than 90 seconds | Opens and entry executions reject with `#81 PriceDeviationTooHigh`; missing or stale Pyth data fails open |
 | Missing feed data | shim | — | `#32 OracleUnavailable`, a loud halt, never a silent stale price |
 | Asset halt | market | admin flag per asset | Risk-increasing operations on that asset reject with `#92 AssetHalted` |
 

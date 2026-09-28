@@ -17,13 +17,13 @@ Every listed pair trades under the same limits:
 
 | Limit | Value |
 |---|---|
-| Max leverage | 10x (the contracts allow up to 25x; testnet policy caps every pair at 10x) |
+| Max leverage | 25x on every listed pair (4% initial margin, 2% maintenance margin) |
 | Min collateral per position or order | 10 USDC |
 | Max position size | $100,000 notional per position |
 | Maintenance margin | 2% of position size |
 | Gas | Keep at least 1 XLM in your wallet; the balance dropdown warns below that |
 
-Position size is your collateral multiplied by your leverage: the 10 USDC minimum at 10x controls a $100 position, and $10,000 of collateral at 10x hits the $100,000 cap.
+Position size is your collateral multiplied by your leverage: the 10 USDC minimum at 25x controls a $250 position, and $4,000 of collateral at 25x hits the $100,000 cap.
 
 Two prices appear on the trade page:
 
@@ -38,7 +38,7 @@ The order panel has four tabs, Market, Limit, Stop Limit and Trail Stop, plus op
 
 ### Market
 
-Opens a position immediately at the current Noeracle mark. Choose Long or Short, enter collateral, set leverage (1x to 10x) and sign. Market orders pay the taker fee. The transaction carries an acceptable-price bound derived from the live mark, so if the price moves past that bound before the transaction lands, the trade reverts instead of filling badly.
+Opens a position immediately at the current Noeracle mark. Choose Long or Short, enter collateral, set leverage (1x to 25x) and sign. Market orders pay the taker fee. The transaction carries an acceptable-price bound derived from the live mark, so if the price moves past that bound before the transaction lands, the trade reverts instead of filling badly.
 
 ### Limit
 
@@ -134,7 +134,7 @@ Funding keeps the perpetual price tethered to the underlying by paying the crowd
 
 ## Liquidation
 
-- Maintenance margin is 2% of position size on every listed pair. An isolated position gets a liquidation price at open; when the mark reaches it, or equity including funding falls below maintenance margin, keeper bots liquidate the position. At 10x leverage that is roughly an 8% adverse move from entry.
+- Maintenance margin is 2% of position size on every listed pair. An isolated position gets a liquidation price at open; when the mark reaches it, or equity including funding falls below maintenance margin, keeper bots liquidate the position. At 25x leverage that is roughly a 2% adverse move from entry; at 10x, roughly 8%.
 - A liquidation that is not a bankruptcy must also be confirmed against a smoothed price, so a single deviant print cannot trigger it.
 - Positions above $1,000 notional are liquidated in tranches: each round closes 20% of the position, and further rounds wait at least 30 seconds, giving the price room to recover. A bankrupt position (equity at or below zero) skips both the tranche and the wait.
 - Each liquidation charges a penalty of 1% of the notional closed, capped at the equity that remains. Half of the penalty is the keeper's reward and half goes to the vault's insurance buffer. Any equity left above the penalty is refunded to you.
@@ -143,7 +143,7 @@ Funding keeps the perpetual price tethered to the underlying by paying the crowd
 - The positions table shows a warning triangle when the mark is within 10% of your liquidation price.
 
 <Callout type="error" title="What liquidation costs">
-At 10x leverage a liquidation leaves you with only the sliver of equity above the 2% maintenance margin, minus the 1% penalty. Set a stop-loss above your liquidation price if you want to exit with more than that.
+At any leverage a liquidation leaves you with only the sliver of equity above the 2% maintenance margin, minus the 1% penalty; at 25x that sliver is reached after a 2% move. Set a stop-loss above your liquidation price if you want to exit with more than that.
 </Callout>
 
 ### Price-deviation guard

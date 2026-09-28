@@ -60,7 +60,7 @@ Because funds are test money, a reset costs you nothing except reconfiguration. 
 
 Noether is not deployed to Stellar mainnet. No contracts exist there and no launch date is committed. What the mainnet release is planned to include, every item planned and not live:
 
-- **Higher leverage caps.** The deployed risk ladder requires an initial margin of at least 4%, so the contract can never offer more than 25x on any market; the testnet ladder caps every pair at 10x. Mainnet caps will be set per market at launch.
+- **Higher leverage caps.** The deployed risk ladder requires an initial margin of at least 4%, so the contract can never offer more than 25x on any market; since 2026-09-28 every testnet pair runs at that 25x ceiling. Mainnet ships with the same ladder and may launch at a lower cap during the first waves.
 - **A second independent oracle source** alongside Noeracle. See [Oracle and price feeds](/protocol/oracle).
 - **Higher fee-tier volume thresholds.** The testnet thresholds ($20,000, $50,000 and $100,000 of 14-day volume) are lowered for testing; the market code records $1M, $5M and $25M as the intended mainnet tiers, to be set at initialization. See [Trading mechanics](/protocol/trading-mechanics).
 - **An external audit before launch.** See [Security and audits](/protocol/security).
