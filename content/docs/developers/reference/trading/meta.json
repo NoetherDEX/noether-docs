@@ -1,0 +1,8 @@
+{
+  "title": "Orders and transactions",
+  "pages": [
+    "get-orders-open",
+    "post-orders-prepare",
+    "post-tx-submit"
+  ]
+}

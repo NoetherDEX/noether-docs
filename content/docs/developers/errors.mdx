@@ -1,0 +1,388 @@
+---
+title: "Errors"
+description: "Gateway HTTP error bodies, how failed transactions surface contract and host errors, and the error code tables of the deployed contracts."
+---
+
+Every error you can hit while integrating with Noether, in one place: the HTTP errors the gateway returns, how failed on-chain transactions surface in API responses, and the complete error code tables for the market, Trader Vault and referral contracts as deployed on testnet. Search this page by error name or code.
+
+All examples are against the live gateway at `https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io`.
+
+## Gateway HTTP errors
+
+The gateway returns JSON error bodies with a machine-readable `error` field. Summary first, exact bodies below.
+
+| Status | `error` value | Where | Meaning |
+|---|---|---|---|
+| 400 | `FST_ERR_VALIDATION` | Any endpoint | Request params or body failed schema validation |
+| 400 | `unsupported_asset` | `POST /v1/orders/prepare` | Asset symbol is not in the supported list |
+| 400 | `simulation_failed` | `POST /v1/orders/prepare` | Soroban simulation rejected the operation before signing |
+| 400 | `submission_rejected` | `POST /v1/tx/submit` | The RPC rejected the transaction at submission |
+| 401 | `missing_bearer` | Authenticated endpoints | No or non-Bearer `Authorization` header |
+| 401 | `malformed_bearer` | Authenticated endpoints | Bearer value missing the colon separator |
+| 401 | `missing_timestamp` | Authenticated endpoints | Required `X-Timestamp` header absent |
+| 401 | `stale_timestamp` | Authenticated endpoints | `X-Timestamp` more than 30 seconds from server time |
+| 401 | `invalid_credentials` | Authenticated endpoints | Unknown or revoked key, or wrong secret |
+| 401 | `invalid_signature` | `POST /v1/keys` | Bad, expired or reused challenge; wrong signature; fee-bump transaction; wrong operation |
+| 403 | `not_in_beta` | `POST /v1/keys` | Wallet address is not on the closed-beta allowlist |
+| 404 | (Fastify default) | Unknown route | No such path |
+| 404 | `Unknown asset` | `GET /v1/markets/{asset}`, `GET /v1/markets/{asset}/price` | Asset not supported |
+| 404 | `vault_not_found` | `GET /v1/vaults/{id}` | No Trader Vault with that id |
+| 404 | `unknown_code` | `GET /v1/referral/lookup` | Referral code does not resolve |
+| 404 | `no_code` | `GET /v1/referral/info` | Address never registered a referral code |
+| 404 | `key_not_found` | `DELETE /v1/keys/{keyId}` | Key does not exist, belongs to someone else, or is already revoked |
+| 409 | `key_limit_reached` | `POST /v1/keys` | The wallet already holds the maximum number of active keys |
+| 429 | `rate_limited` | Any endpoint except `/v1/health` and `/docs` | Rate limit exceeded for your tier |
+| 451 | `region_restricted` | `/v1/orders*`, `/v1/tx*` only | Trading blocked in your jurisdiction (configuration-dependent) |
+| 502 | `rpc_error` | `POST /v1/orders/prepare`, `POST /v1/tx/submit` | Soroban RPC unreachable or transport failure |
+| 503 | `try_again_later` | `POST /v1/tx/submit` | RPC transaction queue is full; resubmit shortly |
+
+### 400: validation and preparation failures
+
+Schema validation failures carry the Fastify validation code in `error`, a human-readable `message`, and a `validation` array with the failing schema paths. Example (invalid candle interval):
+
+```json
+{
+  "error": "FST_ERR_VALIDATION",
+  "message": "querystring/interval must be equal to one of the allowed values",
+  "validation": [
+    {
+      "instancePath": "/interval",
+      "schemaPath": "#/properties/interval/enum",
+      "keyword": "enum",
+      "params": { "allowedValues": ["1m", "5m", "15m", "1h", "4h", "1d", "1w"] },
+      "message": "must be equal to one of the allowed values"
+    }
+  ]
+}
+```
+
+Body validation runs before authentication, so a malformed `POST /v1/orders/prepare` body gets this 400 even without a key. `POST /v1/orders/prepare` adds two errors of its own:
+
+```json
+{"error": "unsupported_asset", "asset": "XYZ"}
+```
+
+```json
+{"error": "simulation_failed", "message": "..."}
+```
+
+A `simulation_failed` at prepare time usually means the trade would revert on chain: insufficient collateral, a halted market, a contract error. Read the message; it often contains the underlying contract error. See [how on-chain errors surface](#how-on-chain-errors-surface) below.
+
+### 401: authentication failures
+
+Authenticated endpoints expect `Authorization: Bearer <keyId>:<secret>` and `X-Timestamp` (unix seconds) in every request. See [Authentication](/developers/authentication) for the full scheme. The failure bodies, in the order the gateway checks them:
+
+```json
+{"error": "missing_bearer"}
+```
+
+```json
+{"error": "malformed_bearer", "hint": "use Bearer <keyId>:<secret>"}
+```
+
+```json
+{"error": "missing_timestamp"}
+```
+
+```json
+{"error": "stale_timestamp"}
+```
+
+```json
+{"error": "invalid_credentials"}
+```
+
+`stale_timestamp` means the `X-Timestamp` value drifted more than 30 seconds from server time. Key issuance (`POST /v1/keys`) has its own 401:
+
+```json
+{"error": "invalid_signature"}
+```
+
+Causes: the challenge expired (five-minute TTL), was already used, the signature does not verify against the claimed address, the transaction is a fee-bump, or the first operation is not a `manageData` op carrying the challenge bytes. Challenges are held in gateway process memory, so a gateway restart voids outstanding challenges; request a fresh one and retry.
+
+### 403: closed beta
+
+API key issuance is gated to early-access wallets. A non-allowlisted address gets:
+
+```json
+{
+  "error": "not_in_beta",
+  "message": "API key issuance is currently restricted to early-access wallets. Join the waitlist at noether.exchange to request access."
+}
+```
+
+The gate applies at key issuance only. Public endpoints stay public, and a key you already hold keeps working. Check the gating state without auth via `GET /v1/keys/beta-status`.
+
+### 404: not found
+
+Unknown routes return Fastify's default:
+
+```json
+{"message": "Route GET:/v1/nope not found", "error": "Not Found", "statusCode": 404}
+```
+
+Resource-specific 404 bodies:
+
+```json
+{"error": "Unknown asset", "asset": "FOO"}
+```
+
+```json
+{"error": "vault_not_found", "id": 999}
+```
+
+```json
+{"error": "unknown_code", "code": "NOSUCHCODE"}
+```
+
+```json
+{"error": "no_code", "address": "GCHAX2N74WJVZLATV7WETVWZRHM5RSOINGELOHP2BRXTEC7AHUXUHHIT"}
+```
+
+```json
+{"error": "key_not_found"}
+```
+
+Note the asymmetry: `GET /v1/markets/{asset}` and `GET /v1/markets/{asset}/price` return 404 for unknown assets, but `GET /v1/candles` does not; it returns `200` with an empty `candles` array and `source: "binance"` instead.
+
+### 409: key limit reached
+
+`POST /v1/keys` refuses to mint another key when the wallet already holds the maximum number of active keys. The message states the count and the limit; revoke an unused key and retry.
+
+```json
+{"error": "key_limit_reached", "message": "This wallet already has N active API keys (limit N). Revoke an unused key before issuing another."}
+```
+
+### 429: rate limited
+
+Limits are per fixed 60-second window aligned to the wall-clock minute: 60 requests per minute unauthenticated (per IP), 600 requests per minute with a standard API key (per owning wallet). Every rate-limited response carries `X-RateLimit-Tier` and `X-RateLimit-Remaining` headers; `/v1/health` and `/docs` are exempt. Sending a valid key and `X-Timestamp` on any endpoint, even a public one, moves you to your wallet's higher bucket.
+
+On breach you get a `Retry-After` header (seconds until the window resets) and:
+
+```json
+{"error": "rate_limited", "retry_after_sec": 37}
+```
+
+Back off until `retry_after_sec` elapses, then resume.
+
+### 451: region restricted
+
+The trading endpoints (`/v1/orders*` and `/v1/tx*`) can be geo-restricted. When the restriction applies you get HTTP 451:
+
+```json
+{
+  "error": "region_restricted",
+  "message": "Trading is not available in your jurisdiction. See the Terms of Service (restricted persons)."
+}
+```
+
+This response is configuration-dependent: treat it as a possible response on the trading endpoints and handle it terminally (do not retry). Read-only endpoints, authentication and `/v1/health` are outside the geo-guarded surface.
+
+### 5xx: upstream failures
+
+```json
+{"error": "rpc_error", "message": "Upstream RPC request failed."}
+```
+
+HTTP 502: the gateway could not complete its Soroban RPC call. The body is deliberately opaque; the full error is in the gateway's logs under the `x-request-id` of your response. Retry with backoff. On `POST /v1/tx/submit` the body also carries `"retryable": true`.
+
+```json
+{
+  "error": "try_again_later",
+  "retryable": true,
+  "hash": "...",
+  "message": "RPC transaction queue is full — resubmit the same signed XDR shortly"
+}
+```
+
+HTTP 503, with `Retry-After: 2`: the RPC transaction queue is full. Resubmit the same signed XDR after the delay. `POST /v1/tx/submit` is idempotent, so resubmitting is safe and returns the prior result if the transaction already landed.
+
+## How on-chain errors surface
+
+Noether contracts fail with typed Soroban contract errors; on the wire they look like `Error(Contract, #22)`. The gateway decodes these for you at two points in the [trading flow](/developers/rest-api/trading).
+
+**At prepare time.** `POST /v1/orders/prepare` simulates the transaction before returning the unsigned XDR. If the contract would revert, you get `400 simulation_failed` and never need to sign anything.
+
+**At submit time.** `POST /v1/tx/submit` decodes the transaction's diagnostic events into a structured `contractError` object, and a `hostError` object when the Soroban host aborted outside contract code:
+
+```json
+{
+  "hash": "85895449a4...",
+  "status": "FAILED",
+  "contractError": {"code": 22, "name": "InsufficientCollateral"},
+  "hostError": null,
+  "txResultCode": "txFailed",
+  "resultXdr": "AAAA..."
+}
+```
+
+A transaction rejected before inclusion returns `400 submission_rejected` with the same `contractError`, `hostError` and `txResultCode` fields. `contractError` is `null` when the failure is not a contract error; in that case look at `hostError` (for example `{"type": "budget", "code": "exceeded_limit"}` for a resource overrun, or a `storage` trap when the ledger state moved between simulation and apply, which a fresh prepare fixes) and `txResultCode`.
+
+Two things to know when decoding:
+
+- The gateway maps the code number to a name from its own copy of the `NoetherError` table below. A code it does not recognize decodes as `"UnknownContractError"` with the raw number preserved, so match on `code`, not `name`.
+- Each contract has its own code space. `NoetherError` covers the market contract (and the shared vault, oracle shim and router errors). Trader Vault (`FactoryError`) and referral (`ReferralError`) codes overlap numerically with the low `NoetherError` codes; disambiguate by which contract your transaction invoked.
+
+<Callout type="info" title="Most common while integrating">
+- `#30 PriceStale`: the on-chain oracle price for the asset is older than 60 seconds and you are on a risk-increasing path (opens, entry-order checks). Closes and liquidations are never blocked by staleness. Trades sent through the app go through the Noether Router, which relays a fresh signed price in the same transaction; API-prepared transactions call the market directly, so retry after the keeper's next price push.
+- `#22 InsufficientCollateral`: collateral below the 10 USDC minimum (`100000000` raw), or the open fee consumed all of it. Send collateral as a 7-decimal fixed-point string.
+- `#21 InvalidLeverage`: leverage must be an integer from 1 to 10 on the current deployment.
+- `#23 PositionTooLarge`: position size (collateral times leverage) above the $100,000 cap (`maxPositionSize` in `GET /v1/markets/stats`).
+- `#82 OpenInterestCapExceeded` and `#89 SkewCapExceeded`: the open would push the asset past its per-side open-interest cap, the vault's aggregate reservation cap, or its net-skew cap. `GET /v1/markets/stats` reports the live headroom per asset; reduce size or wait for open interest to unwind.
+- `#81 PriceDeviationTooHigh`: the fresh price moved more than the deviation band (1% by contract default) from the last good price recorded within ten staleness windows (600 seconds at the 60-second default); opens halt, closes still work.
+
+Parameter details are on [Trading mechanics](/protocol/trading-mechanics).
+</Callout>
+
+## Market and shared contract errors (`NoetherError`)
+
+Shared by the market contract, the Liquidity Vault, the Noeracle shim and the Noether Router. Codes are grouped in ranges by category. This is the enum in the deployed market contract's interface; the numbers 51, 63 and 68 are intentionally unused and never reassigned.
+
+### General (1 to 19)
+
+| Code | Name | Meaning |
+|---|---|---|
+| 1 | `NotInitialized` | Contract not initialized |
+| 2 | `AlreadyInitialized` | `initialize` called twice |
+| 3 | `Unauthorized` | Caller not authorized for this operation |
+| 4 | `Paused` | Operation blocked while the contract is paused |
+| 5 | `InvalidParameter` | Bad input |
+| 6 | `Overflow` | Arithmetic overflow |
+| 7 | `DivisionByZero` | Division by zero |
+
+### Position (20 to 29)
+
+| Code | Name | Meaning |
+|---|---|---|
+| 20 | `PositionNotFound` | No position with that id |
+| 21 | `InvalidLeverage` | Leverage outside 1 to the market's maximum (10 on this deployment) |
+| 22 | `InsufficientCollateral` | Collateral below the 10 USDC minimum, or the open fee consumed all collateral |
+| 23 | `PositionTooLarge` | Position size above the maximum position size |
+| 24 | `NotPositionOwner` | Caller is not the position's trader |
+| 25 | `InsufficientMargin` | Position has insufficient margin for the operation |
+| 27 | `PositionTooSmall` | A partial close or reduce-only would leave a residual position below the minimum collateral floor; close the whole position instead |
+
+### Oracle (30 to 39)
+
+| Code | Name | Meaning |
+|---|---|---|
+| 30 | `PriceStale` | Price older than the staleness limit (60 seconds) on a risk-increasing path; closes and liquidations are exempt |
+| 31 | `InvalidPrice` | Price is zero or negative |
+| 32 | `OracleUnavailable` | Oracle not responding or unavailable |
+
+### Vault (40 to 49)
+
+| Code | Name | Meaning |
+|---|---|---|
+| 40 | `InsufficientLiquidity` | The Liquidity Vault cannot cover the request (withdrawal above balance, a withdrawal that would undercut reserved payouts, or a reservation above the vault's USDC balance) |
+| 41 | `InvalidAmount` | Amount is zero or negative |
+| 42 | `InsufficientBalance` | Balance too low for the operation |
+| 43 | `DepositCapExceeded` | Deposit would exceed the per-account guarded-launch cap |
+
+### Liquidation and funding (50 to 59)
+
+| Code | Name | Meaning |
+|---|---|---|
+| 50 | `NotLiquidatable` | Position is healthy and cannot be liquidated |
+| 55 | `FundingIntervalNotElapsed` | `apply_funding` called before 3,600 seconds have elapsed since the last application |
+
+### Order (60 to 75)
+
+| Code | Name | Meaning |
+|---|---|---|
+| 60 | `OrderNotFound` | No order with that id |
+| 61 | `OrderNotPending` | Order already executed or cancelled |
+| 62 | `OrderNotTriggered` | Price has not reached the order's trigger |
+| 64 | `NotOrderOwner` | Caller is not the order's trader |
+| 65 | `InvalidTriggerPrice` | Trigger price invalid (for example a stop-loss above entry for a long) |
+| 66 | `InvalidSlippageTolerance` | Slippage tolerance is 0 or above 10,000 bps |
+| 67 | `OrderAlreadyExists` | The position already has an attached order of that type |
+| 69 | `InvalidTrailingPercent` | Trailing percentage outside 1 to 5,000 bps (0.01% to 50%) |
+| 70 | `PostOnlyViolation` | A post-only order would execute immediately at placement |
+
+A slippage breach on execution does not raise an error: the order is cancelled with status `CancelledSlippage` and the collateral refunded.
+
+### Cross margin and risk controls (76 to 93)
+
+| Code | Name | Meaning |
+|---|---|---|
+| 76 | `CrossMarginInsufficientBalance` | Cross-margin pool has insufficient balance for the operation |
+| 77 | `CrossMarginInsufficientFreeMargin` | The withdrawal or open would leave insufficient free margin |
+| 78 | `CrossMarginNotLiquidatable` | Cross-margin account is not liquidatable |
+| 79 | `CrossMarginNoPositions` | Trader has no open cross-margin positions |
+| 80 | `CrossMarginOrderNotSupported` | Stop-loss, take-profit and trailing stops cannot attach to cross-margin positions |
+| 81 | `PriceDeviationTooHigh` | Fresh price moved beyond the deviation band versus the stored last-good price; opens halt, closes and liquidations stay allowed |
+| 82 | `OpenInterestCapExceeded` | The open would exceed the per-asset per-side open-interest cap or the aggregate payout-reservation cap (both sized against vault AUM) |
+| 83 | `LiquidationCooldown` | A partial liquidation ran recently and the position is inside its grace period (bankruptcy overrides it) |
+| 84 | `AdlNotActive` | `adl_close` called while auto-deleveraging is not active for the position's asset |
+| 85 | `AdlNotEligible` | The `adl_close` target is not a net winner at the current mark |
+| 86 | `LiquidationNotConfirmed` | Liquidation is eligible on the fresh price but not yet confirmed by the smoothed mark; retry next cycle (bankruptcy overrides it) |
+| 87 | `AcceptablePriceExceeded` | A market open or close filled worse than the trader's acceptable-price bound; resubmit with 0 to fill unbounded |
+| 88 | `AssetRiskNotConfigured` | A risk-increasing operation hit an asset with no per-market risk parameters configured |
+| 89 | `SkewCapExceeded` | The open would push the asset's net long-short skew past its cap and make it more imbalanced; skew-reducing opens always pass |
+| 90 | `Frozen` | Full-freeze pause: even risk-reducing operations are halted; only `cancel_order` works |
+| 91 | `NetsToZero` | An open would net to zero or beyond against the trader's opposite same-asset positions; use the close or reduce-only paths instead |
+| 92 | `AssetHalted` | Trading in this market is temporarily halted by the admin; closing and liquidating still work |
+| 93 | `WithdrawCooldownActive` | An LP withdrawal from the Liquidity Vault is inside the post-deposit cooldown window |
+
+## Trader Vault errors (`FactoryError`)
+
+Raised by the Trader Vaults (vault factory) contract as deployed. These share numbers with low `NoetherError` codes; attribute by contract.
+
+| Code | Name | Meaning |
+|---|---|---|
+| 1 | `AlreadyInitialized` | `initialize` called twice |
+| 2 | `NotInitialized` | Contract not initialized |
+| 3 | `InvalidParameter` | Bad input |
+| 4 | `InvalidName` | Vault name empty or longer than 64 characters |
+| 5 | `VaultNotFound` | Unknown vault id |
+| 6 | `NotLeader` | A leader-only call made by an address that is not the vault's leader |
+| 7 | `NotAdmin` | Defined; the admin check uses Soroban auth instead, so this code is not raised by the current build |
+| 8 | `AmountMustBePositive` | Amount or shares is zero or negative |
+| 9 | `InsufficientShares` | Burning more shares than owned |
+| 10 | `InsufficientBalance` | Trade collateral or payout exceeds the vault's USDC balance |
+| 11 | `LeaderMinimumViolated` | The action would break the leader minimum-holding rule (checked on deposits, withdrawals and leader opens) |
+| 12 | `Paused` | Vault is paused by its leader or the admin |
+| 13 | `Overflow` | Checked-math overflow |
+| 14 | `NavCalculationFailed` | Negative inputs to the NAV calculation |
+| 15 | `NoFeesToClaim` | Fee claim with NAV at or below the high-water mark |
+| 16 | `NotVaultPosition` | A leader operation referenced a position or order not owned by its vault |
+| 17 | `LiquidityDeployed` | The withdrawal is priced fairly at full NAV but exceeds the vault's liquid cash while capital is deployed in open positions; wait for the leader to free it |
+| 18 | `ValuationUnavailable` | Full-NAV valuation could not read a position's equity or an order (oracle or market failure); deposits, withdrawals and claims fail closed |
+| 19 | `TooManyOpenSlots` | The vault already holds the maximum number of open positions and orders |
+| 20 | `CreationRestricted` | `create_vault` blocked by the leader allowlist or the maximum-vaults cap |
+| 21 | `MinOutputNotMet` | Deposit or withdraw output fell below the caller's declared minimum; NAV moved between signing and inclusion |
+
+See [Trader Vaults](/guides/trader-vaults) for the leader minimum-holding rule and how it bounds outside deposits.
+
+## Referral errors (`ReferralError`)
+
+Raised by the referral contract as deployed.
+
+| Code | Name | Meaning |
+|---|---|---|
+| 1 | `AlreadyInitialized` | `initialize` called twice |
+| 2 | `NotInitialized` | Contract not initialized |
+| 3 | `NotAdmin` | Defined; the admin check uses Soroban auth instead, so this code is not raised by the current build |
+| 4 | `NotMarket` | Defined; the market check uses Soroban auth instead, so this code is not raised by the current build |
+| 5 | `InvalidParameter` | A basis-point parameter above the maximum, or another out-of-range input |
+| 6 | `CodeTooShort` | Code shorter than the minimum length |
+| 7 | `CodeTooLong` | Code longer than the maximum length |
+| 8 | `CodeAlreadyTaken` | Code already exists (codes are globally unique and case-sensitive) |
+| 9 | `AlreadyHasCode` | One code per address |
+| 10 | `UnknownCode` | Code does not resolve to a referrer |
+| 11 | `AlreadyHasReferrer` | Referee is already bound to a referrer; bindings are permanent |
+| 12 | `SelfReferral` | Code owner and referee are the same address |
+| 13 | `InsufficientVolume` | The address has not traded the minimum volume required to register a code (the minimum is 0 on the current deployment) |
+| 14 | `NothingToClaim` | Claimable balance is zero |
+| 15 | `Overflow` | Checked-math overflow |
+| 16 | `ClaimUnfunded` | The registry's USDC balance cannot cover the claim; the claimable balance is preserved, retry once the pool refills |
+| 17 | `RegistryPaused` | Registry paused by the admin; state-changing calls reject |
+| 18 | `RevokedCode` | The code's referrer has been revoked |
+
+## Next steps
+
+- [Orders and transactions](/developers/rest-api/trading): the prepare, sign, submit flow where `contractError` appears
+- [Authentication](/developers/authentication): bearer keys, the wallet challenge and the 401 family
+- [Trading mechanics](/protocol/trading-mechanics): the parameters behind the position and margin errors
+- [Generated reference](/developers/reference): try the endpoints live

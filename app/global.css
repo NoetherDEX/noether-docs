@@ -1,0 +1,330 @@
+@import 'tailwindcss';
+@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/preset.css';
+@import 'fumadocs-openapi/css/preset.css';
+
+/* ── Noether quiet-terminal system (web/app/globals.css), dark only ──
+   Layered dark neutrals; elevation = surface steps + hairline borders, never
+   shadows or glow. Gold is for actions, active state, brand marks and
+   eyebrows only. `static`: Tailwind v4 otherwise drops theme tokens that no
+   utility class references, and plain CSS below relies on them. */
+@theme static {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-heading: var(--font-sora), ui-sans-serif, system-ui, sans-serif;
+
+  --color-surface: hsl(216 19% 8%);
+  --color-surface-2: hsl(216 18% 11%);
+  --color-surface-3: hsl(217 18% 14%);
+  --color-faint: hsl(212 7% 42%);
+  --color-border-strong: hsl(217 11% 15%);
+  --color-gold: hsl(45 93% 47%);
+  --color-long: hsl(158 80% 43%);
+  --color-short: hsl(357 81% 57%);
+  --color-blue: hsl(217 91% 60%);
+
+  /* App radius scale tops out at 8px; elevation never uses shadows. */
+  --radius-xl: 0.5rem;
+  --radius-2xl: 0.5rem;
+  --radius-3xl: 0.5rem;
+  --shadow-2xs: 0 0 #0000;
+  --shadow-xs: 0 0 #0000;
+  --shadow-sm: 0 0 #0000;
+  --shadow: 0 0 #0000;
+  --shadow-md: 0 0 #0000;
+  --shadow-lg: 0 0 #0000;
+  --shadow-xl: 0 0 #0000;
+  --shadow-2xl: 0 0 #0000;
+}
+
+:root,
+.dark,
+.dark #nd-sidebar {
+  --color-fd-background: hsl(216 19% 5%);
+  --color-fd-foreground: hsl(216 12% 92%);
+  --color-fd-muted: hsl(216 18% 11%);
+  --color-fd-muted-foreground: hsl(212 8% 63%);
+  --color-fd-popover: hsl(216 18% 11%);
+  --color-fd-popover-foreground: hsl(216 12% 92%);
+  --color-fd-card: hsl(216 19% 8%);
+  --color-fd-card-foreground: hsl(216 12% 92%);
+  --color-fd-border: hsl(216 13% 12%);
+  --color-fd-primary: hsl(45 93% 47%);
+  --color-fd-primary-foreground: hsl(216 19% 5%);
+  --color-fd-secondary: hsl(216 18% 11%);
+  --color-fd-secondary-foreground: hsl(216 12% 92%);
+  --color-fd-accent: hsl(217 18% 14%);
+  --color-fd-accent-foreground: hsl(216 12% 92%);
+  --color-fd-ring: hsl(45 93% 47%);
+  --color-fd-overlay: hsl(216 19% 5% / 0.72);
+
+  --color-fd-info: hsl(217 91% 60%);
+  --color-fd-warning: hsl(45 93% 47%);
+  --color-fd-error: hsl(357 81% 57%);
+  --color-fd-success: hsl(158 80% 43%);
+  --color-fd-idea: hsl(45 93% 47%);
+
+  --fd-layout-width: 90rem;
+  color-scheme: dark;
+}
+
+html {
+  scrollbar-gutter: stable;
+}
+
+html > body[data-scroll-locked] {
+  margin-right: 0px !important;
+  --removed-body-scroll-bar-size: 0px !important;
+}
+
+body {
+  background: var(--color-fd-background);
+  color: var(--color-fd-foreground);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Headings in Sora, as the app. */
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-heading);
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+/* Every numeral in the product is data. */
+code,
+kbd,
+samp,
+.font-mono,
+td {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Reading measure for prose (~72 characters of Inter at 16px); tables, code
+   and callouts keep the full column. */
+:root {
+  --noe-measure: 36rem;
+}
+.prose > :is(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6),
+.prose .fd-steps > :is(p, ul, ol, h3),
+.prose .fd-step > :is(p, ul, ol, h3) {
+  max-width: var(--noe-measure);
+}
+.prose p,
+.prose li {
+  text-wrap: pretty;
+}
+
+/* Focus: brand gold, 10.3:1 on the base background. Fumadocs colours its
+   outline in currentColor; the app uses one colour everywhere. */
+:focus-visible {
+  outline: 2px solid var(--color-fd-primary) !important;
+  outline-offset: 2px;
+}
+
+::selection {
+  background: hsl(45 93% 47% / 0.35);
+  color: white;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-fd-background);
+}
+::-webkit-scrollbar-thumb {
+  background: #27272a;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
+}
+@media (hover: none) and (pointer: coarse) {
+  ::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Skip link: first focusable element, visible only on keyboard focus. */
+.noe-skip {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 100;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--color-fd-primary);
+  color: var(--color-fd-primary-foreground);
+  font-size: 13px;
+  font-weight: 600;
+  transform: translateY(-200%);
+}
+.noe-skip:focus-visible {
+  transform: none;
+}
+
+/* ── Shared primitives (mirroring the app's Badge / eyebrow / CTA) ── */
+@layer components {
+  .noe-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--color-fd-primary);
+  }
+  .noe-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 6px;
+    border-radius: 2px;
+    border: 1px solid var(--color-border-strong);
+    background: var(--color-surface-2);
+    color: var(--color-fd-muted-foreground);
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .noe-pill-gold {
+    border-color: hsl(45 93% 47% / 0.3);
+    background: hsl(45 93% 47% / 0.1);
+    color: var(--color-fd-primary);
+  }
+  .noe-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 6px;
+    background: var(--color-fd-primary);
+    color: var(--color-fd-primary-foreground);
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: opacity 120ms ease-out;
+  }
+  .noe-btn:hover {
+    opacity: 0.9;
+  }
+  .noe-btn-quiet {
+    background: var(--color-surface-2);
+    color: var(--color-fd-foreground);
+    border: 1px solid var(--color-border-strong);
+  }
+  .noe-strip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--color-fd-border);
+    border-radius: 6px;
+    background: var(--color-surface);
+    font-size: 12px;
+  }
+  .noe-strip-compact {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+  .noe-card {
+    display: block;
+    border: 1px solid var(--color-fd-border);
+    border-radius: 8px;
+    background: var(--color-surface);
+    padding: 20px;
+    transition: border-color 120ms ease-out, background-color 120ms ease-out;
+  }
+  a.noe-card:hover {
+    border-color: var(--color-border-strong);
+    background: var(--color-surface-2);
+  }
+  .noe-stat {
+    border: 1px solid var(--color-fd-border);
+    border-radius: 8px;
+    background: var(--color-surface);
+    padding: 16px;
+  }
+  .noe-stat-value {
+    font-family: var(--font-mono);
+    font-size: 20px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* ── Content components in the app idiom ── */
+/* Table headers as quiet mono eyebrows, like the app's data tables. */
+.prose th {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-fd-muted-foreground);
+}
+.prose td code,
+.prose th code {
+  font-size: 12px;
+}
+
+/* Diagrams (diagram-design dark skin): the canvas colour frames the figure. */
+.noe-diagram {
+  margin: 1.75rem 0;
+}
+.noe-diagram-frame {
+  overflow-x: auto;
+  border: 1px solid var(--color-fd-border);
+  border-radius: 8px;
+  background: #2d3142;
+}
+.noe-diagram-canvas {
+  margin: 0 auto;
+}
+.noe-diagram-canvas svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.noe-diagram figcaption {
+  margin-top: 0.625rem;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-fd-muted-foreground);
+  max-width: var(--noe-measure);
+  text-wrap: pretty;
+}
+.noe-diagram figcaption a {
+  color: var(--color-fd-primary);
+  white-space: nowrap;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Syntax highlighting: github-dark's comment colour (#6A737D) is 3.8:1 on the
+   code surface; lift it to #8B949E (6.0:1). Every other token clears 6.9:1. */
+html.dark .shiki span[style*='--shiki-dark:#6A737D'] {
+  color: #8b949e !important;
+}

@@ -1,0 +1,15 @@
+{
+  "title": "Protocol",
+  "description": "Contracts, oracle, mechanics, security",
+  "root": true,
+  "pages": [
+    "index",
+    "architecture",
+    "oracle",
+    "trading-mechanics",
+    "contracts",
+    "networks",
+    "security",
+    "changelog"
+  ]
+}

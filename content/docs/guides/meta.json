@@ -1,0 +1,14 @@
+{
+  "title": "Guides",
+  "description": "Trade, earn and refer from the web app",
+  "root": true,
+  "pages": [
+    "index",
+    "getting-started",
+    "trading",
+    "vault",
+    "trader-vaults",
+    "referrals",
+    "faq"
+  ]
+}

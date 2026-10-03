@@ -1,0 +1,137 @@
+---
+title: "Architecture"
+description: "A map of the six Noether contracts, the Noeracle price source and the off-chain services, and how one trade moves through them."
+---
+
+Noether is a perpetual futures exchange on Stellar in which every position, order, liquidation and settlement is executed by Soroban smart contracts. This page maps the whole system, six on-chain contracts plus the external Noeracle price source and four off-chain services, and follows a trade, a price and an event through it. It is written for integrators and for traders who want to know what actually happens when they click.
+
+The live deployment runs on the Stellar testnet. The app is at [testnet.noether.exchange](https://testnet.noether.exchange) and the API gateway at `https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io`. Endpoints are listed on [Networks](/protocol/networks) and the current addresses on [Contracts and events](/protocol/contracts).
+
+## System overview
+
+<Diagram name="system-overview" caption="The trade path goes through the Noether Router in one transaction; the read path serves indexed data through the API gateway." />
+
+Three things to notice:
+
+1. **Prices are pulled.** The keeper keeps every feed fresh on a schedule, and the Noether Router relays a freshly signed round inside the same transaction as your trade, so a trade never fails the market's 60-second staleness check. Details in [Oracle and price feeds](/protocol/oracle).
+2. **The liquidity vault is the counterparty to every trade.** The market reserves a position's maximum payout in the vault at open, settles PnL and funding against the vault at close, and never pays a winner out of other traders' collateral.
+3. **Reads are split by freshness.** Prices are chain reads through the shim; histories, leaderboards and open-position lists are projections the indexer rebuilds from contract events.
+
+## On-chain contracts
+
+Six Noether contracts are deployed on the Stellar testnet, plus the external Noeracle contract they read from. Addresses live on [Contracts and events](/protocol/contracts).
+
+### Market
+
+The trading engine. One market contract serves every listed pair: each entry point takes an `asset` symbol and positions store their pair, so listing a pair needs no market redeploy. It handles:
+
+- opening and closing positions in isolated or cross margin, partial closes, and adding or removing collateral on isolated positions,
+- limit, stop-limit, stop-loss, take-profit (market or take-limit) and trailing-stop orders, with time-in-force and reduce-only flags,
+- liquidation, partial liquidation with a grace period, staged cross-account liquidation, and an auto-deleveraging (ADL) backstop,
+- per-market funding accrued hourly from time-weighted skew, and volume-based maker and taker fee tiers,
+- per-market risk parameters (leverage cap, initial and maintenance margin, maximum position size), readable with `get_asset_risk`,
+- a two-tier pause (halt-open or full-freeze) and per-asset trading halts.
+
+It reads prices through the Noeracle shim, calls the liquidity vault to reserve payouts and settle PnL, and can be upgraded in place with positions, orders and balances preserved. The full maths is on [Trading mechanics](/protocol/trading-mechanics).
+
+### Liquidity vault
+
+The LP pool and the counterparty to all trades. Liquidity providers deposit test USDC and receive the NOE share token; the vault charges a 0.30% deposit fee and a 0.30% withdrawal fee, and a withdrawal has to wait 30 minutes after that address's last deposit. Assets under management are deposits plus collected fees minus traders' unrealized PnL, floored at zero. The vault enforces the protocol's capacity limits when the market reserves a payout: aggregate reservations may not exceed 70% of AUM, each asset's per-side open interest is capped at 25% of AUM, and each asset's net skew at 15% of AUM. It also runs an insurance buffer, funded by liquidation penalties and the protocol's share of trading fees, that pays winning traders before LP value does; when a payout cannot be covered in full, the remainder is booked as a per-trader claim. Withdrawals are never pause-gated but cannot pull USDC that backs open positions. NOE is a classic Stellar asset wrapped as a Stellar Asset Contract and pre-minted to the vault, so deposits and withdrawals transfer existing tokens rather than minting and burning. See the [vault guide](/guides/vault).
+
+### Noeracle shim
+
+A small reader between the market and the oracle. It exposes `lastprice(asset)`, returning a `(price, timestamp)` pair with 7 decimals: it maps the symbol to Noeracle's 8-byte feed tag and calls Noeracle's persistent read. If Noeracle has no entry for the feed, the shim panics with `OracleUnavailable` (#32) instead of returning a placeholder, so trading in that asset halts visibly. It also exposes `twap(asset, records)`, the mean of the newest ring entries paired with the newest timestamp, which the market uses only to confirm liquidations and protective triggers, never to settle. The shim's admin can point it at another Noeracle deployment, swap the backend to a standard SEP-40 oracle with automatic rescaling, and upgrade the code in place, so listing a pair never changes the address the market depends on.
+
+### Noether Router
+
+The verify-then-trade entry point used at trade time. A Stellar transaction carries one host-function invocation, so a client cannot prepend an oracle update to its trade; the router does both inside one contract call. Its entry points (`open_with_price`, `close_with_price`, `close_partial_with_price`, `liquidate_with_price`, `execute_with_price`, `adl_with_price` and `liquidate_cross_with_prices`) take the trade arguments plus one signed Noeracle attestation, check every publisher key against the router's allowlist and every price against a coarse per-asset sanity band, relay the round into Noeracle, and then call the market. The trader signs the whole call tree; the router holds no funds.
+
+### Vault Factory
+
+Powers Trader Vaults, user-created copy-trading vaults that are distinct from the protocol liquidity vault. Anyone can create a vault (the admin can restrict creation to an allowlist); depositors buy shares priced at full net asset value including open positions, and the leader trades the pooled collateral through proxy calls into the market. The leader earns a 10% share of profit above the vault's high-water mark and must keep at least 5% of the circulating shares. Withdrawals are never pause-gated; when the capital is deployed in open positions a withdrawal fails with a distinct error instead of taking a haircut. Positions and orders the keeper settles out of band (a stop firing, a liquidation, a limit fill) are reconciled back into the vault by permissionless calls. See [Trader vaults](/guides/trader-vaults).
+
+### Referral
+
+The on-chain referral registry (build `referral_v1`). A trader registers one code of 3 to 16 characters, a referee binds to a code once and permanently, and the market calls `record_trade` on every fee-bearing open: the referee's fee is discounted by 4%, and 10% of the fee accrues to the referrer, who claims it in USDC from the registry. Only the market address may call `record_trade`, and a paused or broken registry never blocks a trade: the hook fails open to the full fee. See [Referrals](/guides/referrals).
+
+<Callout type="info">
+  A seventh contract sits under all of this: Noeracle, the signed price source. It is a separate pull-oracle project; publishers sign price rounds off-chain and anyone may relay a signed round on-chain. How Noether consumes it is covered in [Oracle and price feeds](/protocol/oracle).
+</Callout>
+
+## Off-chain services
+
+### Web app
+
+The trading interface at [testnet.noether.exchange](https://testnet.noether.exchange): Trade, Portfolio, Earn, Leaderboard, Faucet, Vaults and Referrals. It performs direct chain reads and wallet-signed writes, and calls the gateway for indexed data. For a trade it fetches one signed round from the Noeracle HTTP API, passes it with the trade arguments to the router, and submits a single transaction signed by your wallet (Freighter, or LOBSTR through WalletConnect). Chart and ticker prices stream from Noeracle's server-sent-events feed at about two rounds per second; if no frame arrives for 10 seconds the app marks the feed stale and polls the on-chain shim every 5 seconds until frames return. Display prices never enter a transaction: every trade carries a signed attestation.
+
+### API gateway
+
+The public REST and WebSocket service at `https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io`: REST under `/v1/*`, WebSocket at `/v1/ws`, interactive OpenAPI docs at `/docs`. It reads on-chain prices through the shim with read-only simulations cached for 3 seconds, and serves everything historical from the indexer's projections. Authentication is a wallet-challenge flow that issues bearer API keys; rate limits are tiered per key; during the closed beta most authenticated endpoints require an allowlisted wallet, while market data, events, referral lookups and health are public. `GET /v1/health` echoes every contract address the gateway resolved, with its source, so you can always check which deployment an instance serves. Start at [Developers](/developers).
+
+### Indexer
+
+Turns contract events into queryable data. It polls Soroban `getEvents` from a persisted ledger cursor, decodes events from the market, liquidity vault, vault factory and referral contracts, and writes projections into Postgres: the raw event archive, open positions, realized trades, bad-debt and shortfall records, trader-vault state and referral state. It also runs a candle aggregator that polls the Noeracle HTTP API and folds prices into OHLC buckets for `GET /v1/candles`, and reconciliation jobs that re-verify projected positions and trader-vault balances against direct contract reads. `GET /v1/health` reports the cursor's last ledger and its age in seconds.
+
+### Keeper bot
+
+The service that keeps the protocol moving. On a fixed schedule (30 seconds by default) it fetches the latest signed rounds and relays them to Noeracle for every listed pair, which keeps on-chain prices inside the market's 60-second staleness window. On a faster cycle (5 seconds by default) it snapshots positions and orders, liquidates under-margined positions and cross accounts and executes triggered orders through the router's verify-then-trade entry points, updates trailing-stop peaks and checks ADL triggers; each candidate is simulated first and submitted only when the simulation succeeds, so on-chain state is always the final arbiter. It calls `apply_funding`, which accrues at most once an hour per pair, and extends contract storage lifetimes every 6 hours. Before every price push it rejects non-positive prices, prices outside the same sanity bands the router enforces, jumps larger than 10% (BTC, ETH) or 20% (other pairs) against its last push, and prices that diverge more than 5% from an independent reference; it has no fallback price source and skips the cycle if the Noeracle API is unreachable.
+
+## Life of a trade
+
+What happens when you open a market position from the web app:
+
+<Diagram name="life-of-a-trade" caption="Everything after the signature runs inside one transaction: if any check fails, nothing happens." />
+
+1. **Fetch a round.** The app requests the latest signed round for your pair from `https://api.noeracle.org/v1/latest`. It carries the feed tag, the price (7-decimal fixed point), a timestamp, a round ID, the publisher key and an ed25519 signature.
+2. **Build and sign one transaction.** The app assembles a single router call, `open_with_price(trader, collateral, leverage, direction, acceptable_price, attestation)`, and your wallet signs it once, authorizing the whole call tree. `acceptable_price` is your own fill bound; 0 means unbounded.
+3. **Router verification.** The router checks that the attestation bundle is well formed (#5 `InvalidParameter`), that every publisher key is on its allowlist (#3 `Unauthorized`) and that every price lies inside the pair's sanity band (#31 `InvalidPrice`).
+4. **Price relay.** The router forwards the round to Noeracle's quorum entry point. Noeracle re-checks the signature, publisher registration, staleness, quorum and round monotonicity; any failure reverts the whole transaction.
+5. **Market execution.** In the same transaction the router calls the market's `open_position`. The market reads the price back through the shim with a strict read (#30 `PriceStale`, #81 `PriceDeviationTooHigh`), then applies every risk-increasing check: pause state (#4), asset halt (#92), ADL flag (#82), minimum collateral of 10 USDC (#22), the pair's leverage cap and maximum size (#21, #23, or #88 when the pair has no risk parameters), your acceptable price (#87), and auto-netting against your opposite positions in the same pair and margin mode (#91 if the order would net to zero).
+6. **Vault reservation.** The market reserves the full position size in the vault. The open fails with #82 `OpenInterestCapExceeded` past the 70% aggregate or 25% per-side cap, #89 `SkewCapExceeded` past the 15% net-skew cap unless the open reduces skew, or #40 `InsufficientLiquidity` if the vault's USDC cannot back it.
+7. **Fee, storage, event.** The taker fee for your tier is deducted (discounted if you are bound to a referral code), the fee moves to the vault with the protocol share routed to the insurance buffer or the treasury, the position is stored and `position_opened` is emitted with the position ID, trader, asset, direction, size and entry price.
+8. **Indexing.** The indexer picks up the event and upserts the open-positions projection; the position appears in `GET /v1/positions/open` and on the WebSocket event channels.
+
+Closing runs the mirror path through `close_with_price`: the market reads the price leniently (a close is never blocked by staleness or the deviation band, but a deviant print is clamped to within 3% of the last good price when that price is recent), computes realized PnL, settles profit and funding with the vault, and emits `position_closed`, which the indexer folds into the trades, leaderboard and volume projections.
+
+<Callout type="info">
+  Staleness and deviation guards apply only to risk-increasing operations: opens, entry-order executions, collateral removal and trailing-peak updates. Closes, liquidations and protective orders are never blocked by a stale or deviating price, so you can always reduce risk. The full guard stack is on [Oracle and price feeds](/protocol/oracle).
+</Callout>
+
+## What is served from where
+
+The gateway mixes two data sources: direct chain reads (always current) and indexer projections (rebuilt from events). This table maps the public API surface to its source.
+
+| Endpoint | Source | Notes |
+|---|---|---|
+| `GET /v1/markets`, `GET /v1/markets/{asset}`, `GET /v1/markets/{asset}/price` | Direct chain read (shim) | All listed pairs with the current oracle price; 3-second cache |
+| `GET /v1/markets/stats` | Chain reads plus projections | Open interest, 24-hour volume, capacity headroom per market, pool and custody blocks |
+| `GET /v1/oracle/prices`, `GET /v1/oracle/health` | Direct chain read (shim) | The same read path the market itself uses, with per-asset age and staleness |
+| WS `ticker.<ASSET>` | Direct chain read (shim) | Ticks every 3 seconds from the cached read |
+| `GET /v1/candles` | `candles` projection | Built from Noeracle API polling, not from chain events |
+| `GET /v1/events` | `events_raw` projection | Raw event archive; filter by `topic`, `contract`, `from_ledger`, `to_ledger`, `before_ts` |
+| `GET /v1/positions/open`, `GET /v1/orders/open` | `positions` and order projections | Upserted on open, removed on close or liquidation; positions reconciled against contract reads |
+| `GET /v1/trades` | `trades` projection | Realized closes and liquidations joined to their opens; `include_opens` adds opens; WS `trades.<ASSET>` streams the same in real time |
+| `GET /v1/leaderboard`, `/rank`, `/totals` | `trades` projection (aggregated) | Sort by PnL or volume |
+| `GET /v1/account/volume`, `GET /v1/account/shortfall` | Projections | 14-day rolling volume mirroring the contract's fee-tier record; unpaid winner claims |
+| `GET /v1/adl/queue` | Chain reads plus projections | Current auto-deleveraging candidates |
+| `GET /v1/vaults` and per-vault routes | `vaults` and `vault_trades` projections | Reconciled against contract read-backs |
+| Referral endpoints | `referrers` projection plus chain reads | See [Referral endpoints](/developers/rest-api/referral) |
+| `GET /v1/health` | Gateway itself | Resolved contract addresses with source, indexer cursor age, market pause state, open-position counts and drift flag |
+
+A practical rule: anything price-shaped is a live chain (or Noeracle) read; anything history-shaped is a projection. `/v1/health` includes the indexer's last ledger and its age in seconds, so you can check how current the projection side is before trusting history endpoints.
+
+## Keeping the pieces in agreement
+
+Two cross-system invariants matter to an integrator:
+
+- **One oracle, three consumers.** The router (write path), the shim (read path) and the keeper must all point at the same Noeracle deployment; the router's `get_noeracle` and the shim's `get_noeracle` both return it.
+- **One pair list, several copies.** Pair tags are compiled into the shim, the router and the market, mirrored in the keeper's guard bands, and shipped in the API and SDK asset lists. Listing a pair upgrades those contracts in place and the admin sets the new pair's risk parameters and price band; no address changes.
+
+## Next steps
+
+<Cards>
+  <Card title="Oracle and price feeds" href="/protocol/oracle" />
+  <Card title="Contracts and events" href="/protocol/contracts" />
+  <Card title="Trading mechanics" href="/protocol/trading-mechanics" />
+  <Card title="API overview" href="/developers" />
+</Cards>
