@@ -1,12 +1,18 @@
 ---
 title: "Changelog"
-description: "User-facing changes to the app, the gateway API, the SDKs and the deployed testnet contracts, newest first, with the dates that can be verified."
+description: "User-facing changes to the app, the gateway API, the SDKs and the deployed contracts, newest first, with the dates that can be verified."
 ---
 
 Internal incidents and operations are not listed here.
 
+## 2026-10
+
+- **2026-10-03** Contracts deployed on Stellar mainnet in guarded mode: market paused, vault unfunded, admin 2-of-3; settlement in Circle USDC; 25x ladder on 14 pairs; Pyth cross-check configured. Addresses on [Contracts and events](/protocol/contracts#deployed-contracts-stellar-mainnet-guarded-mode). Trading opens after the external audit.
+- **2026-10-01** Vault factory fixes (live on the staging stack and in the mainnet build): vault limit orders reject the market's reduce-only flag, which could otherwise reach another vault's position; and leader trades authorize the market's USDC pull correctly, which had failed on-chain since July.
+
 ## 2026-09
 
+- **2026-09-28** Maximum leverage raised to 25x on every listed pair on testnet (the ladder's 4% initial / 2% maintenance margin already implied that ceiling), matching the production parameter the mainnet stack ships with. Pyth Pro (live on Stellar since 2026-09-08) added as the on-chain cross-check for Noeracle prices: the router verifies signed Pyth payloads through Pyth's verifier contract and halts new positions on divergence.
 - **2026-09-18** Documentation rebuilt: new site, endpoint reference generated from the gateway's OpenAPI spec, contract addresses and market lists generated from live data.
 - PUMP and UNI perpetuals listed; the market list is now 16 pairs.
 
@@ -19,7 +25,6 @@ Internal incidents and operations are not listed here.
 
 ## 2026-07
 
-- **2026-09-28** Maximum leverage raised to 25x on every listed pair on testnet (the ladder's 4% initial / 2% maintenance margin already implied that ceiling), matching the production parameter the mainnet stack ships with. Pyth Pro (live on Stellar since 2026-09-08) added as the on-chain cross-check for Noeracle prices: the router verifies signed Pyth payloads through Pyth's verifier contract and halts new positions on divergence.
 - **2026-07-21** Production stack redeployed on testnet with fresh contract addresses (see [Contracts and events](/protocol/contracts)). The new market adds partial close and add or remove collateral on isolated positions, an acceptable-price bound on opens and closes, auto-netting of opposite positions, per-market risk parameters (4% initial and 2% maintenance margin at up to 10x), per-market funding, partial and staged liquidation with an insurance buffer, an auto-deleveraging backstop, and a two-tier pause.
 - **2026-07-19** Public testnet app at [testnet.noether.exchange](https://testnet.noether.exchange).
 - **2026-07-16** Gateway: `GET /v1/orders/open` added; `GET /v1/trades` gains `include_opens` and cross-liquidation rows; both SDKs gain `orders.open()`.

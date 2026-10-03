@@ -1,6 +1,6 @@
 ---
 title: "Contracts and events"
-description: "Live-generated addresses for the testnet deployment, how to verify what the gateway serves, and every event the contracts emit."
+description: "Addresses for the testnet deployment and the guarded mainnet deployment, how to verify what the gateway serves, and every event the contracts emit."
 ---
 
 This page is the on-chain reference for Noether: every deployed contract address on the live stack, how to confirm what a running gateway is pointed at, and the complete list of events each contract emits with exact field order, so indexers and integrations can decode them without guesswork.
@@ -20,6 +20,25 @@ Notes:
 - **Noeracle** is the external signed-price source. The market reads prices through the shim, and the router relays signed attestations into Noeracle at trade time. See [Oracle and price feeds](/protocol/oracle).
 - Addresses change whenever contracts are redeployed or the Stellar testnet resets. Do not hardcode them; read them from `GET /v1/health` at startup.
 - All amounts and prices on-chain use 7-decimal fixed point: raw `10_000_000` = 1.0.
+
+## Deployed contracts (Stellar mainnet, guarded mode)
+
+Deployed on 2026-10-03. The stack is live but **dark**: the market is paused (mode 1: no new positions; closes, cancels and withdrawals stay possible), the liquidity vault holds no funds, and every admin operation needs two of three keys. Trading opens after the independent audit; see [Security and audits](/protocol/security). The settlement asset on mainnet is Circle's USDC.
+
+| Contract | Address |
+|---|---|
+| Market | `CBC2XPFPI2DI7CVGRHDLVIHENIPFJJOGSUPAHLWZ43UTHK5TFJVIHJTC` |
+| Liquidity vault | `CCKLYRVPC7V3N46C22MOPGLPWFLMCBTEZXLFH6USLMOUI34M2TIGBJZG` |
+| Noeracle shim | `CCMIT3N6MFNMRI4DALO2IYWJUX3KCAISBLQMXVYLGMQNCIEALNG6BNCS` |
+| Noether router | `CDQ3IIOHD3ROBIJGMAQY7XNXOOJMJVUNVJKISZKRL2HDXS2OVRRK3FJZ` |
+| Noeracle | `CBX4S2UPV5RHPPRUDK6GHIETWFUIEI446FPU7RWGEZ3V3MU5GK4JRUHC` |
+| Vault factory | `CBVO5EYFMQ3MJRNWWMFTPK25PCC32HUZR3A657ULGIWMCR2JRP6GEWSD` |
+| Referral registry | `CCNE2BCYJMOULKOEJL5OXCYL6FY3LSZPPBR2GRRMQXTWMBOET6KNEFV4` |
+| USDC (Circle, SAC) | `CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75` |
+| NOE token (SAC; issuer `GBZUHPF62VNZZ4FGUG2GIOFSNTLLFQ3EPV7RIHLAJFID3Q2NLT7LZPKD`, supply locked) | `CD2MFZILCJA4DSM2JA4YQ535YIBVLX5C5ANZOMDLUMO3B2NGPDLBWL3I` |
+| Admin account (2-of-3) | `GCAINIWHPUKBDNSWNHQM5AZUZ27DNIFK7RR7V6Q4X55SKTGQG4XZKHO7` |
+
+Every address is verifiable on [stellar.expert](https://stellar.expert/explorer/public/contract/CBC2XPFPI2DI7CVGRHDLVIHENIPFJJOGSUPAHLWZ43UTHK5TFJVIHJTC): the deployed code hashes equal the testnet builds for the market, vault, router, shim and referral contracts; the vault factory carries two fixes that landed after the testnet deployment (see the [changelog](/protocol/changelog)). `market.get_pause_state` returns `[1, 1791048662]`. There is no mainnet gateway, keeper or indexer while the stack is paused.
 
 ### Verify what a deployment actually serves
 
@@ -55,7 +74,7 @@ The contracts themselves agree on the wiring: the router's `get_market` and `get
 
 ## Network configuration
 
-The testnet passphrase, RPC and Horizon endpoints are on [Networks](/protocol/networks). Mainnet is planned but not live; no Noether contracts are deployed there.
+The testnet passphrase, RPC and Horizon endpoints are on [Networks](/protocol/networks), together with the mainnet parameters for the guarded deployment above.
 
 ## Event reference
 
