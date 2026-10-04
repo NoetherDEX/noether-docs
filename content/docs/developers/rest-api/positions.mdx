@@ -1,0 +1,142 @@
+---
+title: "Positions"
+description: "Open positions across the venue or for one trader, each with its advisory ADL quintile, plus the per-asset auto-deleveraging queue."
+---
+
+Two public endpoints, no API key required: the open-positions feed, venue-wide or filtered to a single trader, and the auto-deleveraging (ADL) queue that ranks which winning positions would be deleveraged first if the pool could not cover payouts.
+
+Base URL: `https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io`.
+
+## `GET /v1/positions/open`
+
+Returns positions that have been opened and not yet closed or liquidated. Positions are materialized by the indexer from `position_opened` events minus subsequent `position_closed` and `position_liquidated` events.
+
+**Auth:** none (public). Unauthenticated requests fall under the public rate-limit tier (60 requests per minute per IP).
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `trader` | string | no | Stellar address to filter by. Returns only that trader's open positions |
+
+Rows are returned newest first (ordered by `openedAt` descending). There is no `limit` parameter: the response is hard-capped at 200 rows for the venue-wide query and 500 rows when filtered by `trader`.
+
+### Example request
+
+```bash
+curl -s "https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/positions/open?trader=GDG5D524ZLOT3FZBE6KLODRK7JP5O5I77QYGB5FPLT6TB724IOGGQBID"
+```
+
+### Example response
+
+```json
+{
+  "positions": [
+    {
+      "positionId": 22477,
+      "trader": "GDG5D524ZLOT3FZBE6KLODRK7JP5O5I77QYGB5FPLT6TB724IOGGQBID",
+      "asset": "BTC",
+      "direction": 0,
+      "size": "688900000000",
+      "entryPrice": "758291644444",
+      "openedAt": 1789549782,
+      "openedTxHash": "7416d9caa1b1a5a0046db390649613ade272d21c9f8bf9f4aa58da1f37b8afa0",
+      "adlQuintile": 4
+    }
+  ]
+}
+```
+
+### Response fields
+
+| Field | Type | Description |
+|---|---|---|
+| `positionId` | integer | On-chain position id |
+| `trader` | string | Position owner. Can be an account address (`G...`) or a contract address (`C...`); Trader Vaults trade as contracts |
+| `asset` | string | Asset symbol, for example `BTC` |
+| `direction` | integer | `0` long, `1` short |
+| `size` | string | Position size in USDC notional, 7-decimal fixed point (`"688900000000"` is $68,890) |
+| `entryPrice` | string | Entry price, 7-decimal fixed point (`"758291644444"` is $75,829.16) |
+| `openedAt` | integer | Open time, unix seconds |
+| `openedTxHash` | string | Hash of the opening transaction |
+| `adlQuintile` | integer or null | Advisory auto-deleveraging quintile, 1 to 5 (1 is deleveraged first); `null` when the position is not in the queue (no positive PnL) or the queue is unavailable |
+
+This endpoint is served from the indexer projection, not a live chain read, so it can lag the chain. Check `GET /v1/health` and read `indexer.ledgerAgeSeconds` to see how far behind the projection is. If the projection has no data yet, the endpoint returns `{"positions":[]}` rather than an error. The `adlQuintile` merge is best-effort: a failed queue read leaves the field `null` and never fails the positions read.
+
+## `GET /v1/adl/queue`
+
+The advisory auto-deleveraging queue for one asset: positive-PnL positions ranked by profit relative to collateral times leverage, split into quintiles. Rank 1 is the first position to be deleveraged if pool coverage fails. Positions are hydrated from ledger entries at the current oracle mark and the result is cached for 30 seconds.
+
+**Auth:** none (public).
+
+### Query parameters
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `asset` | string | yes | Symbol, 1 to 12 characters, uppercased server-side |
+| `trader` | string | no | Stellar address; keeps only that trader's rows (ranks are unchanged) |
+
+### Example request
+
+```bash
+curl -s "https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/adl/queue?asset=BTC"
+```
+
+### Example response
+
+```json
+{
+  "asset": "BTC",
+  "updatedAt": 1789683312753,
+  "degraded": false,
+  "rows": [
+    {
+      "positionId": 22243,
+      "trader": "GAT47PJIXN5EGLBLLZJHB6K42IXVDDNQ5OYWX6UL4MG5W4JLZWYXNLXA",
+      "asset": "BTC",
+      "direction": 0,
+      "size": "4700000000",
+      "pnl": "830011620",
+      "score": "177480",
+      "rank": 1,
+      "quintile": 1
+    },
+    {
+      "positionId": 22244,
+      "trader": "GAT47PJIXN5EGLBLLZJHB6K42IXVDDNQ5OYWX6UL4MG5W4JLZWYXNLXA",
+      "asset": "BTC",
+      "direction": 0,
+      "size": "3500000000",
+      "pnl": "618093125",
+      "score": "177480",
+      "rank": 2,
+      "quintile": 1
+    }
+  ]
+}
+```
+
+The `rows` array above is trimmed; the live response lists every positive-PnL position in the asset.
+
+### Response fields
+
+| Field | Type | Description |
+|---|---|---|
+| `asset` | string | The queried symbol |
+| `updatedAt` | integer | When the queue was computed, milliseconds epoch |
+| `degraded` | boolean | `true` when the ranking could not be computed this window. An empty degraded queue means unknown, never that nobody is at risk |
+| `rows[].size`, `rows[].pnl` | string | Position notional and unrealized PnL at the current mark, 7-decimal USDC strings |
+| `rows[].score` | string | The ranking score (profit relative to collateral, scaled by leverage); higher is deleveraged sooner |
+| `rows[].rank`, `rows[].quintile` | integer | 1-based rank and 1 to 5 quintile among the asset's positive-PnL positions |
+
+Omitting `asset` returns a `400` validation error. The queue is advisory: the market contract performs auto-deleveraging on chain, and this endpoint mirrors its ordering so you can see your exposure before it happens. See [Trading mechanics](/protocol/trading-mechanics) for when ADL triggers.
+
+## Your own positions
+
+If you hold an API key, `GET /v1/account/me/positions` returns your open positions in the same row shape (without `adlQuintile`), plus your recent position events; see [Account](/developers/rest-api/account). For the quintile on your own positions, call this page's public endpoint with `trader=` set to your address.
+
+## Next steps
+
+- [Authentication](/developers/authentication): get an API key for the authenticated endpoints
+- [Orders and transactions](/developers/rest-api/trading): open and close positions via prepare, sign, submit
+- [Markets and market data](/developers/rest-api/markets): recent realized trades and per-asset open interest

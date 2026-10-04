@@ -1,25 +1,41 @@
 {
   "name": "noether-docs",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "Official documentation for Noether — decentralized perpetual futures exchange on Stellar",
   "scripts": {
-    "dev": "next dev",
-    "prebuild": "node scripts/generate-llms.mjs",
     "build": "next build",
+    "dev": "next dev",
     "start": "next start",
-    "fetch:openapi": "node scripts/fetch-openapi.mjs"
+    "types:check": "next typegen && tsc --noEmit",
+    "lint": "eslint",
+    "fetch:openapi": "node scripts/fetch-openapi.mjs",
+    "fetch:data": "node scripts/fetch-data.mjs",
+    "generate:api": "node scripts/generate-api.mjs",
+    "fetch:all": "npm run fetch:openapi && npm run fetch:data && npm run generate:api",
+    "diagrams": "node diagrams/build.mjs"
   },
   "dependencies": {
-    "next": "14.2.35",
-    "nextra": "3.3.1",
-    "nextra-theme-docs": "3.3.1",
-    "react": "18.3.1",
-    "react-dom": "18.3.1"
+    "cn": "^0.2.6",
+    "fumadocs-core": "16.15.11",
+    "fumadocs-mdx": "15.4.1",
+    "fumadocs-openapi": "^11.4.3",
+    "fumadocs-ui": "npm:@fumadocs/base-ui@16.15.11",
+    "lucide-react": "^1.43.0",
+    "next": "16.3.4",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
-    "@types/node": "^20.14.0",
-    "@types/react": "^18.3.3",
-    "typescript": "^5.5.0"
-  }
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/mdx": "^2.0.14",
+    "@types/node": "^26.5.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "eslint": "^9.39.4",
+    "eslint-config-next": "16.3.4",
+    "postcss": "^8.5.28",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2"
+  },
+  "description": "Official documentation for Noether \u2014 decentralized perpetual futures exchange on Stellar"
 }

@@ -1,0 +1,173 @@
+---
+title: "Account"
+description: "The key-scoped endpoints for your identity, events, open positions and order history, plus the public 14-day volume and shortfall lookups."
+---
+
+Reference for the account endpoints of the gateway: your key identity, your events, your open positions, your order history, and two public per-address lookups (trailing 14-day volume and claimable shortfall). Base URL: `https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io`.
+
+The four `/v1/account/me` endpoints require an API key. There is no `address` parameter on them: the account is always the wallet that owns the key you authenticate with. Send the key and the current unix time as two headers:
+
+```text
+Authorization: Bearer <keyId>:<secret>
+X-Timestamp: <unix seconds>
+```
+
+See [Authentication](/developers/authentication) for how to obtain a key. Requests without a valid key get `401` with a body such as `{"error":"missing_bearer"}`, `{"error":"missing_timestamp"}` or `{"error":"invalid_credentials"}`. The account endpoints cannot be exercised without a key, so the response samples below are shapes taken from the gateway's route code and OpenAPI document rather than captured responses; the two public lookups show live responses.
+
+All money, price and size fields are strings of 7-decimal fixed-point integers (`"100000000"` is 10 USDC). In event and position payloads, `direction` is an integer: `0` long, `1` short.
+
+## `GET /v1/account/me`
+
+Returns the identity behind the API key you called with.
+
+**Auth:** API key required. **Parameters:** none.
+
+```bash
+curl -s https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/account/me \
+  -H "Authorization: Bearer nk_<keyId>:<secret>" \
+  -H "X-Timestamp: $(date +%s)"
+```
+
+```json
+{"owner":"G...","tier":"standard","keyId":"nk_..."}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `owner` | string | Stellar address of the wallet that issued this key |
+| `tier` | string | Rate-limit tier of the key (issuance always grants `standard`) |
+| `keyId` | string | The key id used on this request (`nk_` plus 24 hex characters) |
+
+## `GET /v1/account/me/events`
+
+Decoded contract events where the trader is the authenticated owner: position opens, closes and liquidations, order events, and other trader-scoped topics. Rows have the same shape as the public `/v1/events` feed, newest first.
+
+**Auth:** API key required.
+
+| Query param | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `topic` | string | no | none | Filter by event topic, for example `position_opened` |
+| `before_ts` | integer | no | none | Unix seconds; returns events strictly older than this (cursor pagination) |
+| `limit` | integer | no | 50 | 1 to 500 |
+
+```bash
+curl -s "https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/account/me/events?topic=position_closed&limit=20" \
+  -H "Authorization: Bearer nk_<keyId>:<secret>" \
+  -H "X-Timestamp: $(date +%s)"
+```
+
+The response is `{"events":[ ... ]}` where each row is:
+
+| Field | Type | Description |
+|---|---|---|
+| `eventId` | string | Unique event id (rows are ordered by ledger, then event id, descending) |
+| `contractId` | string | Emitting contract address |
+| `topic` | string | Event topic, for example `position_opened`, `order_cancelled` |
+| `ledger` | integer | Ledger sequence |
+| `ledgerCloseTs` | integer | Ledger close time, unix seconds |
+| `txHash` | string | Transaction hash |
+| `payload` | object | Decoded event fields; keys vary by topic |
+| `insertedAt` | integer | Indexer write time, milliseconds epoch |
+
+To paginate, take the `ledgerCloseTs` of the last row and pass it as `before_ts` on the next request.
+
+## `GET /v1/account/me/positions`
+
+Your currently open positions, plus your recent position lifecycle events, in one call.
+
+**Auth:** API key required. **Parameters:** none.
+
+```bash
+curl -s https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/account/me/positions \
+  -H "Authorization: Bearer nk_<keyId>:<secret>" \
+  -H "X-Timestamp: $(date +%s)"
+```
+
+```json
+{
+  "positions": [
+    {
+      "positionId": 22477,
+      "trader": "G...",
+      "asset": "BTC",
+      "direction": 0,
+      "size": "688900000000",
+      "entryPrice": "758291644444",
+      "openedAt": 1789549782,
+      "openedTxHash": "7416d9caa1b1a5a0046db390649613ade272d21c9f8bf9f4aa58da1f37b8afa0"
+    }
+  ],
+  "events": []
+}
+```
+
+- `positions` rows have the shape of the public open-positions feed (see [Positions](/developers/rest-api/positions)) without the `adlQuintile` field; use `GET /v1/positions/open?trader=` for that. `size` is USDC notional and `entryPrice` a price, both 7-decimal strings; `openedAt` is unix seconds.
+- `events` contains up to 200 of your position events (topics `position_opened`, `position_closed`, `position_liquidated`), newest first, in the event row shape above.
+
+## `GET /v1/account/me/orders`
+
+Your order lifecycle events: topics `order_placed`, `order_executed` and `order_cancelled`, newest first, in the same event row shape as `/v1/account/me/events`.
+
+**Auth:** API key required.
+
+| Query param | Type | Required | Default | Notes |
+|---|---|---|---|---|
+| `before_ts` | integer | no | none | Unix seconds; strictly older than |
+| `limit` | integer | no | 500 | 1 to 500 |
+
+`limit` defaults to 500 here, not 50 like the sibling endpoints, so one call typically returns your full order history. Pass an explicit `limit` for smaller pages.
+
+```bash
+curl -s https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/account/me/orders \
+  -H "Authorization: Bearer nk_<keyId>:<secret>" \
+  -H "X-Timestamp: $(date +%s)"
+```
+
+Response: `{"events":[ ... ]}`. For the current open, executed or cancelled state of each order (folded from these events), use the public `GET /v1/orders/open` feed on [Orders and transactions](/developers/rest-api/trading).
+
+## `GET /v1/account/volume`
+
+Trailing 14-day traded notional for any address. Public, no API key needed, even though it lives under the `account` path.
+
+| Query param | Type | Required | Notes |
+|---|---|---|---|
+| `address` | string | yes | Stellar address, exactly 56 characters |
+
+```bash
+curl -s "https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/account/volume?address=GACOJCQWGRBW7AN4ON7WD54D7UQFWFHBCCOLFCVZHELKGYB34YNFP2YU"
+```
+
+```json
+{"address":"GACOJCQWGRBW7AN4ON7WD54D7UQFWFHBCCOLFCVZHELKGYB34YNFP2YU","volume14d":"22684000000000"}
+```
+
+`volume14d` is a 7-decimal USDC notional string (the sample is $2,268,400). It sums position size over `position_opened` and `position_closed` events in the window and mirrors the market contract's rolling volume record used for fee tiers; liquidations record no volume. Use it to determine which maker and taker fee tier an address currently sits in; see [Trading mechanics](/protocol/trading-mechanics).
+
+## `GET /v1/account/shortfall`
+
+Claimable shortfall for a wallet: USDC the Liquidity Vault still owes this trader from payouts it could not cover in full, plus the global repayment reserve. Public, no API key needed.
+
+| Query param | Type | Required | Notes |
+|---|---|---|---|
+| `address` | string | yes | Stellar address, exactly 56 characters |
+
+```bash
+curl -s "https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/account/shortfall?address=GACOJCQWGRBW7AN4ON7WD54D7UQFWFHBCCOLFCVZHELKGYB34YNFP2YU"
+```
+
+```json
+{"address":"GACOJCQWGRBW7AN4ON7WD54D7UQFWFHBCCOLFCVZHELKGYB34YNFP2YU","owed":"0","reserve":"0","supported":true}
+```
+
+`owed` and `reserve` are 7-decimal USDC strings. When `supported` is `false` the deployed vault predates the shortfall ledger or the chain read failed: the zeros are placeholders, not facts, so hide the surface rather than render them.
+
+## Data freshness
+
+`/v1/account/me` answers from the key record, and `/v1/account/shortfall` is a chain read. Everything else on this page is served from indexer projections, not live chain reads, so it can lag behind the chain. Check `GET /v1/health` and read `indexer.ledgerAgeSeconds` to see how far behind the read side is. Endpoints whose projection tables are missing return empty arrays (`{"events":[]}`) rather than errors.
+
+## Next steps
+
+- [Authentication](/developers/authentication): obtain and use an API key
+- [Orders and transactions](/developers/rest-api/trading): prepare, sign and submit orders
+- [Positions](/developers/rest-api/positions): the public open-positions feed and the ADL queue
+- [Generated reference](/developers/reference): try these calls interactively

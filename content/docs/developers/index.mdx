@@ -1,0 +1,111 @@
+---
+title: "Overview"
+description: "Where the Noether gateway lives, what needs an API key, how rate limits and regional rules apply, and where each reference page is."
+---
+
+Noether exposes a public JSON REST API, a WebSocket stream, and TypeScript and Python SDKs: the same market data, price feeds and trading rails behind the app at [https://testnet.noether.exchange](https://testnet.noether.exchange). Everything on these pages runs against the Stellar testnet deployment.
+
+<Callout type="info" title="Base URL">
+`https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io`. Every endpoint is under the `/v1` prefix (for example `GET /v1/markets`), and the WebSocket endpoint is `wss://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/ws`. If you have seen `api.noether.exchange` in older material, do not use it: that hostname does not resolve today.
+</Callout>
+
+The gateway serves its own Swagger UI at [https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/docs](https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/docs) and the raw OpenAPI 3.0.3 document at `/docs/json`. The `servers` entry inside that document is a placeholder (`http://localhost:4000`), so always use the base URL above. The [generated endpoint reference](/developers/reference) on this site is built from the same document with the public base URL patched in, and it has a playground for every operation.
+
+## What you can build
+
+- **Read market data.** Sixteen markets with live oracle prices (`/v1/markets`, `/v1/oracle/prices`), OHLC candles (`/v1/candles`), per-asset open interest, 24-hour volume and pool capacity (`/v1/markets/stats`), recent trades, open positions and the leaderboard. All public, no key required.
+- **Trade programmatically.** A non-custodial prepare, sign, submit flow: `POST /v1/orders/prepare` returns an unsigned Soroban transaction XDR for your account, you sign it locally with your own key, and `POST /v1/tx/submit` broadcasts it and polls for the result. The gateway never holds private keys. See [Orders and transactions](/developers/rest-api/trading).
+- **Stream in real time.** WebSocket channels for oracle prices (`ticker.BTC` and the other fifteen assets), trade prints (`trades.BTC`), a public event firehose (`events`) and an authenticated per-account event stream. See [WebSocket API](/developers/websocket).
+- **Query the ecosystem.** Trader Vault marketplace data (`/v1/vaults`), referral codes and profiles (`/v1/referral/lookup`, `/v1/referral/info`), the auto-deleveraging queue (`/v1/adl/queue`) and raw decoded contract events (`/v1/events`).
+
+## Authentication in one paragraph
+
+Public endpoints need no credentials. Endpoints that act as you (preparing trades, submitting transactions, listing your keys, reading your own account data) require a bearer API key sent as `Authorization: Bearer <keyId>:<secret>` together with an `X-Timestamp` header holding the current unix time in seconds; a request without the timestamp fails with `401 missing_timestamp`. Keys are minted through a wallet-challenge flow: request a challenge for your Stellar address, sign it with your wallet, and exchange the signed proof for a key. Key issuance is in closed beta, so a non-allowlisted address gets `403 not_in_beta`, but every public endpoint stays open to everyone and keys that have already been issued keep working. Full walkthrough: [Authentication](/developers/authentication).
+
+## Rate limits
+
+Limits are enforced per fixed 60-second window, aligned to the wall-clock minute (not sliding).
+
+| Tier | Limit | Counted against |
+|---|---|---|
+| `public` (no key) | 60 requests per minute | your IP address |
+| `standard` (every issued key) | 600 requests per minute | the wallet that owns the key |
+| `market_maker` | 6,000 requests per minute | the wallet that owns the key |
+
+- Every rate-limited response carries `X-RateLimit-Tier` and `X-RateLimit-Remaining` headers.
+- Sending a valid key (with `X-Timestamp`) on any endpoint, including public ones, moves you from the per-IP `public` bucket to your wallet's tier. Authenticate your read traffic if you poll frequently.
+- Authenticated buckets are keyed on the owning wallet, not the key id, so minting more keys does not multiply your quota.
+- `GET /v1/health` and everything under `/docs` are exempt.
+- A WebSocket upgrade request counts as one request against this budget.
+- All keys are issued at the `standard` tier. There is no self-serve upgrade to `market_maker`; contact the team if you need it.
+
+When you exceed the limit you get HTTP `429` with a `Retry-After` header (seconds until the window resets) and this body:
+
+```json
+{ "error": "rate_limited", "retry_after_sec": 37 }
+```
+
+## Regional restrictions
+
+The trading endpoints (everything under `/v1/orders` and `/v1/tx`) can return HTTP `451` for requests from restricted jurisdictions:
+
+```json
+{ "error": "region_restricted", "message": "Trading is not available in your jurisdiction. See the Terms of Service (restricted persons)." }
+```
+
+The restricted list in the gateway is the United States, Cuba, Iran, North Korea, Syria, Russia, Belarus, and Ontario (Canada). Whether the check fires depends on the deployment's configuration and on the country header the edge supplies, so treat `451` as a possible response and do not retry it. Read endpoints, authentication and `/v1/health` are never geo-blocked. The Terms of Service restricted-persons rules apply regardless of whether a request is blocked.
+
+## Where the data comes from
+
+The gateway serves two kinds of data. **Chain-read endpoints**, market info and oracle prices (`/v1/markets`, `/v1/markets/{asset}/price`, `/v1/oracle/prices`), read the on-chain Noeracle price shim live through Soroban RPC with a 3-second cache per asset. **Indexer-backed endpoints**, events, trades, leaderboard, open positions, account volume, vaults and referral history, are served from projections built by a separate indexer that follows contract events, so they can lag the chain. `GET /v1/health` reports the indexer's freshness as `indexer.ledgerAgeSeconds`; check it when event-derived data looks older than you expect. Candles are a hybrid: native candles bucketed from Noether's own oracle price ticks when available, with a Binance fallback for cold history. Each `/v1/candles` response says which it used in its `source` field.
+
+## API directory
+
+<Cards>
+  <Card title="Authentication" href="/developers/authentication" description="Wallet challenge, bearer keys, X-Timestamp, key management" />
+  <Card title="REST API" href="/developers/rest-api" description="Narrative guides with live responses for every endpoint family" />
+  <Card title="Generated reference" href="/developers/reference" description="Every operation from the OpenAPI document, with a playground" />
+  <Card title="WebSocket API" href="/developers/websocket" description="Frames, channels, limits and reconnect rules" />
+  <Card title="TypeScript SDK" href="/developers/sdk-ts" description="noether-sdk 0.2.0 on npm" />
+  <Card title="Python SDK" href="/developers/sdk-py" description="noether-sdk 0.2.0 on PyPI" />
+  <Card title="Errors" href="/developers/errors" description="HTTP error bodies and contract error codes" />
+</Cards>
+
+REST guides by area:
+
+| Area | Page | Highlights |
+|---|---|---|
+| Markets | [Markets and market data](/developers/rest-api/markets) | Market list, stats and capacity, candles, trades, leaderboard |
+| Oracle | [Oracle and prices](/developers/rest-api/oracle) | Live prices for all sixteen assets, oracle health |
+| Account | [Account](/developers/rest-api/account) | Your identity, events, positions, orders, 14-day volume, shortfall |
+| Positions | [Positions](/developers/rest-api/positions) | Open positions (venue-wide and per trader), ADL queue |
+| Trading | [Orders and transactions](/developers/rest-api/trading) | Prepare and submit, the two-step trade flow, open orders |
+| Vaults | [Vaults](/developers/rest-api/vaults) | Trader Vault marketplace, detail and history feeds |
+| Referral | [Referral](/developers/rest-api/referral) | Code lookup, referrer profiles, referred trades and claims |
+| System | [Keys, events and health](/developers/rest-api/system) | Key lifecycle, raw events, health and resolved addresses |
+
+## Conventions you will see everywhere
+
+- **Precision.** Money, price and size fields are strings holding 7-decimal fixed-point integers (`10000000` is 1.0, so `"100000000"` is 10 USDC and `"763827177778"` is $76,382.7177778). Price payloads add a pre-converted `priceFloat`; candle OHLC values are the one exception and are plain floats.
+- **Timestamps.** Chain-derived fields (`ts`, `timestamp`, `ledgerCloseTs`, `openedAt`, `createdAt` on vaults and referrers) are unix seconds; gateway bookkeeping fields (`insertedAt`, `updatedAt`, key `createdAt` and `lastUsedAt`, challenge `expiresAt`) are millisecond epochs. Each page marks the unit.
+- **Direction.** Request bodies use the strings `"Long"` and `"Short"`; projection payloads encode direction as an integer, `0` for long and `1` for short.
+- **Pagination.** Cursor style via `before_ts` plus `limit`, newest first (candles are the exception: oldest first). The leaderboard pages by `offset` inside a `snapshot`. There are no page tokens or total counts on the cursor endpoints.
+- **Request ids and CORS.** Every response carries an `x-request-id` header, and browser CORS is limited to the Noether web app's origins. Call the API from a server, script or bot rather than from another website's frontend.
+
+## Protocol background
+
+If you want to understand what the API is fronting (the market contract, the Liquidity Vault, the Noeracle price chain and the verify-then-trade Noether Router), start here:
+
+<Cards>
+  <Card title="Architecture" href="/protocol/architecture" />
+  <Card title="Oracle" href="/protocol/oracle" />
+  <Card title="Trading mechanics" href="/protocol/trading-mechanics" />
+  <Card title="Contract addresses" href="/protocol/contracts" />
+  <Card title="Networks" href="/protocol/networks" />
+</Cards>
+
+## Next steps
+
+1. Call `GET /v1/markets` with no key and confirm you can see live prices.
+2. Read [Authentication](/developers/authentication) and mint an API key (closed beta; check `GET /v1/keys/beta-status` first).
+3. Walk the prepare, sign, submit flow on the [Orders and transactions](/developers/rest-api/trading) page, or let an SDK do it: [TypeScript](/developers/sdk-ts) or [Python](/developers/sdk-py).

@@ -1,0 +1,171 @@
+---
+title: "Referral"
+description: "Resolve referral codes, read any wallet's referrer profile and binding, and pull your own referred trades and claims with an API key."
+---
+
+Endpoints for the on-chain referral system: resolve referral codes, inspect referrer profiles and bindings, and (with an API key) read your own referral state, referred trades and claims. For the end-user flow, see [Referrals](/guides/referrals).
+
+Base URL: `https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io`; all paths are under `/v1`. All money fields are strings of 7-decimal fixed-point USDC (`"10000000"` is 1.0 USDC).
+
+The economics are live on chain. The deployed referral registry's `get_config` reads a 4% referee fee discount, a 10% referrer share of each referred trade's fee, and no minimum trading volume to register a code. Every time the market collects a fee from a bound referee it records the trade in the registry, which credits the referrer's claimable balance; claims pay out in USDC from the registry. The fields below reflect that accrual as the indexer sees it.
+
+## Endpoints
+
+| Method and path | Auth | Purpose |
+|---|---|---|
+| `GET /v1/referral/lookup` | Public | Resolve a referral code to its referrer profile |
+| `GET /v1/referral/info` | Public | Referrer profile and binding for a wallet address |
+| `GET /v1/referral/me` | API key | Your own referrer profile and referee binding |
+| `GET /v1/referral/me/trades` | API key | Trades you earned referral fees on |
+| `GET /v1/referral/me/claims` | API key | Your referral fee claims |
+
+Authenticated endpoints take the standard headers `Authorization: Bearer <keyId>:<secret>` and `X-Timestamp`; see [Authentication](/developers/authentication). They cannot be exercised without a key, so their samples below are shapes from the gateway's route code rather than captured responses.
+
+## The referrer row
+
+`lookup`, `info` and `me` all return the same referrer row shape:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `referrer` | string | Stellar address that owns the code |
+| `code` | string | The referral code (3 to 16 characters, case-sensitive) |
+| `createdAt` | integer | Code creation time (ledger close), unix seconds |
+| `referredCount` | integer | Number of wallets bound to this code |
+| `totalVolumeGenerated` | string | Cumulative fee amounts of referred trades, 7-decimal USDC; see the note below |
+| `totalEarned` | string | Lifetime referrer share credited, 7-decimal USDC |
+| `claimable` | string | Referrer share credited and not yet claimed, 7-decimal USDC |
+| `updatedAt` | integer | Last update time, milliseconds epoch; note the unit differs from `createdAt` (seconds) |
+
+<Callout type="warning" title="totalVolumeGenerated is not notional volume">
+Despite the name, this field accumulates the fee amounts of referred trades, not their notional size: the indexer adds each recorded trade's `originalFee` to it. A referred $10,000 trade that paid a $5.00 taker fee adds `"50000000"` (5.00 USDC) to this field, not `"100000000000"`.
+</Callout>
+
+## `GET /v1/referral/lookup`: resolve a code
+
+Public. Resolves a referral code to its referrer profile. Codes are case-sensitive: `clyde` resolves in the sample below while `CLYDE` returns `unknown_code`.
+
+| Query param | Required | Constraints |
+|---|---|---|
+| `code` | yes | 3 to 16 characters |
+
+```bash
+curl -s "https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/referral/lookup?code=clyde"
+```
+
+```json
+{
+  "referrer": "GDFKAOEH2SNDVSXP5TLFOSUFHY4W5GCVLCBBDIGY2NWAOAGRIRWCLRAQ",
+  "code": "clyde",
+  "createdAt": 1786270101,
+  "referredCount": 0,
+  "totalVolumeGenerated": "0",
+  "totalEarned": "0",
+  "claimable": "0",
+  "updatedAt": 1786270077241
+}
+```
+
+The accrual fields read `"0"` here because this code has no bound referees yet (`referredCount` is 0); they grow as referred wallets trade. An unknown code returns 404:
+
+```json
+{"error": "unknown_code", "code": "NOSUCHCODE"}
+```
+
+## `GET /v1/referral/info`: profile by address
+
+Public. Returns a wallet's referrer profile plus, if that wallet was itself referred, the binding it holds as a referee.
+
+| Query param | Required | Constraints |
+|---|---|---|
+| `address` | yes | Stellar address, exactly 56 characters |
+
+```bash
+curl -s "https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/referral/info?address=GDFKAOEH2SNDVSXP5TLFOSUFHY4W5GCVLCBBDIGY2NWAOAGRIRWCLRAQ"
+```
+
+Response shape: `self` is a referrer row, `binding` is a binding row or `null`.
+
+```json
+{
+  "self": {
+    "referrer": "GDFKAOEH2SNDVSXP5TLFOSUFHY4W5GCVLCBBDIGY2NWAOAGRIRWCLRAQ",
+    "code": "clyde",
+    "createdAt": 1786270101,
+    "referredCount": 0,
+    "totalVolumeGenerated": "0",
+    "totalEarned": "0",
+    "claimable": "0",
+    "updatedAt": 1786270077241
+  },
+  "binding": null
+}
+```
+
+A binding row has the fields `referee`, `referrer`, `code`, `boundAt` (unix seconds) and `txHash`. Bindings are permanent: a referee can bind to a code once and cannot rebind.
+
+If the address never registered a code, the endpoint returns 404:
+
+```json
+{"error": "no_code", "address": "GCHAX2N74WJVZLATV7WETVWZRHM5RSOINGELOHP2BRXTEC7AHUXUHHIT"}
+```
+
+## `GET /v1/referral/me`: your referral state
+
+Requires an API key. Returns your own referrer profile (`self`) and the binding you hold as a referee (`binding`). Either may be `null`; unlike `/v1/referral/info`, this endpoint does not 404 when you have no code.
+
+```bash
+curl -s https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/referral/me \
+  -H "Authorization: Bearer nk_<keyId>:<secret>" \
+  -H "X-Timestamp: $(date +%s)"
+```
+
+```json
+{
+  "self": null,
+  "binding": {
+    "referee": "G<your address>",
+    "referrer": "GDFKAOEH2SNDVSXP5TLFOSUFHY4W5GCVLCBBDIGY2NWAOAGRIRWCLRAQ",
+    "code": "clyde",
+    "boundAt": 1789000000,
+    "txHash": "..."
+  }
+}
+```
+
+## `GET /v1/referral/me/trades`: referred trades
+
+Requires an API key. Lists trades this owner earned referral fees on, newest first.
+
+| Query param | Required | Constraints |
+|---|---|---|
+| `limit` | no | 1 to 200, default 50 |
+
+```bash
+curl -s "https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/referral/me/trades?limit=50" \
+  -H "Authorization: Bearer nk_<keyId>:<secret>" \
+  -H "X-Timestamp: $(date +%s)"
+```
+
+Response: `{"trades": [...]}` where each row has `id`, `referee`, `referrer`, `originalFee`, `discount`, `payout`, `ledger`, `ts` (unix seconds) and `txHash`. `originalFee`, `discount` and `payout` are 7-decimal USDC strings. With the live configuration, `discount` is 4% of `originalFee` and `payout` is 10% of it: a `"10000000000"` fee ($1,000) yields a `"400000000"` discount and a `"1000000000"` payout. An empty list means no fee has been collected from a wallet bound to your code yet.
+
+## `GET /v1/referral/me/claims`: claim history
+
+Requires an API key. Lists your referral fee claims, newest first.
+
+| Query param | Required | Constraints |
+|---|---|---|
+| `limit` | no | 1 to 200, default 50 |
+
+```bash
+curl -s "https://noether-api.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io/v1/referral/me/claims?limit=50" \
+  -H "Authorization: Bearer nk_<keyId>:<secret>" \
+  -H "X-Timestamp: $(date +%s)"
+```
+
+Response: `{"claims": [...]}` where each row has `id`, `referrer`, `amount` (7-decimal USDC string), `ledger`, `ts` (unix seconds) and `txHash`. Claiming itself is an on-chain call from your wallet (the app's Referrals page does it); each successful claim moves `claimable` back to `"0"` and adds a row here.
+
+## Next steps
+
+- [Authentication](/developers/authentication): get an API key for the `me` endpoints
+- [Referrals guide](/guides/referrals): create and share a code from the app
+- [REST overview](/developers/rest-api): conventions, rate limits, pagination

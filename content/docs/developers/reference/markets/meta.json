@@ -1,0 +1,10 @@
+{
+  "title": "Markets",
+  "pages": [
+    "get-markets-stats",
+    "get-markets",
+    "get-markets-by-asset",
+    "get-trades",
+    "get-candles"
+  ]
+}
