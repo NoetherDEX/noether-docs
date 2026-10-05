@@ -7,8 +7,10 @@ Internal incidents and operations are not listed here.
 
 ## 2026-10
 
+- **2026-10-05** Mainnet site live: [noether.exchange](https://noether.exchange) now serves the mainnet build of the app, behind the waitlist gate, with its own gateway and indexer. Guarded-launch limits are set on-chain: the liquidity vault's deposit cap is zero and creating a trader vault is limited to the admin. The open app stays at [testnet.noether.exchange](https://testnet.noether.exchange).
+- **2026-10-05** Gateway (live on the mainnet gateway; the testnet gateway follows with its next release): a market with no on-chain price is no longer a server error. `GET /v1/markets` and `GET /v1/markets/{asset}` omit `oracle` for it, `GET /v1/oracle/prices` leaves it out, and `GET /v1/markets/{asset}/price` answers 503 `price_unavailable`. In the SDK sources `MarketSummary.oracle` is optional.
 - **2026-10-03** Contracts deployed on Stellar mainnet in guarded mode: market paused, vault unfunded, admin 2-of-3; settlement in Circle USDC; 25x ladder on 14 pairs; Pyth cross-check configured. Addresses on [Contracts and events](/protocol/contracts#deployed-contracts-stellar-mainnet-guarded-mode). Trading opens after the external audit.
-- **2026-10-01** Vault factory fixes (live on the staging stack and in the mainnet build): vault limit orders reject the market's reduce-only flag, which could otherwise reach another vault's position; and leader trades authorize the market's USDC pull correctly, which had failed on-chain since July.
+- **2026-10-01** Vault factory fixes (live on every stack since 2026-10-03): vault limit orders reject the market's reduce-only flag, which could otherwise reach another vault's position; and leader trades authorize the market's USDC pull correctly, which had failed on-chain since July.
 
 ## 2026-09
 

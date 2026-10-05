@@ -58,7 +58,7 @@ Because funds are test money, a reset costs you nothing except reconfiguration. 
 
 ## Mainnet (deployed, guarded)
 
-Noether's contracts have been deployed on Stellar mainnet since 2026-10-03 in guarded mode: the market is paused, the vault holds no funds, and the admin is a 2-of-3 multisig. Addresses are on [Contracts and events](/protocol/contracts#deployed-contracts-stellar-mainnet-guarded-mode). Mainnet parameters:
+Noether's contracts have been deployed on Stellar mainnet since 2026-10-03 in guarded mode: the market is paused, the vault holds no funds and its deposit cap is zero, and the admin is a 2-of-3 multisig. Since 2026-10-05 [noether.exchange](https://noether.exchange) serves the mainnet build of the app behind the waitlist gate. Addresses are on [Contracts and events](/protocol/contracts#deployed-contracts-stellar-mainnet-guarded-mode). Mainnet parameters:
 
 | | |
 |---|---|
@@ -66,6 +66,8 @@ Noether's contracts have been deployed on Stellar mainnet since 2026-10-03 in gu
 | Soroban RPC | `https://mainnet.sorobanrpc.com` (public; use a paid endpoint for production integrations) |
 | Horizon | `https://horizon.stellar.org` |
 | Settlement asset | USDC issued by Circle, `GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN` |
+| Site | [https://noether.exchange](https://noether.exchange), behind the waitlist gate |
+| Gateway | `https://noether-api-mainnet.proudmeadow-533cf0d8.germanywestcentral.azurecontainerapps.io` (same REST surface as testnet; it reports no on-chain prices until the keeper starts) |
 
 No launch date is committed; the public opening follows the external audit. What the opening will include, none of it live while the market is paused:
 
